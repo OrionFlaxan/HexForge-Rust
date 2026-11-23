@@ -23,6 +23,10 @@ pub struct UnitSoA {
     pub fortified: Vec<bool>,
     pub has_attacked: Vec<bool>,
     pub auto_explore: Vec<bool>,
+    /// True while a Worker is actively constructing an improvement/road/terrain order on its tile.
+    pub working: Vec<bool>,
+    /// True when the player enables Automated Worker mode on this Worker unit.
+    pub auto_work: Vec<bool>,
     pub free_slots: Vec<UnitId>,
     pub alive_count: u32,
     /// O(1) spatial lookup: combat unit occupying each tile (`INVALID_UNIT` if empty).
@@ -45,6 +49,8 @@ impl UnitSoA {
             fortified: Vec::with_capacity(256),
             has_attacked: Vec::with_capacity(256),
             auto_explore: Vec::with_capacity(256),
+            working: Vec::with_capacity(256),
+            auto_work: Vec::with_capacity(256),
             free_slots: Vec::new(),
             alive_count: 0,
             tile_mil_unit: vec![INVALID_UNIT; num_tiles],
@@ -84,6 +90,8 @@ impl UnitSoA {
             self.fortified[i] = false;
             self.has_attacked[i] = false;
             self.auto_explore[i] = false;
+            self.working[i] = false;
+            self.auto_work[i] = false;
             slot
         } else {
             let slot = self.alive.len() as UnitId;
@@ -98,6 +106,8 @@ impl UnitSoA {
             self.fortified.push(false);
             self.has_attacked.push(false);
             self.auto_explore.push(false);
+            self.working.push(false);
+            self.auto_work.push(false);
             slot
         };
         if is_civilian {
@@ -582,6 +592,7 @@ impl World {
         self.units.relocate(id, new_tile, is_civ);
         self.units.moves_halves[i] = self.units.moves_halves[i].saturating_sub(cost_halves);
         self.units.fortified[i] = false;
+        self.units.working[i] = false;
 
         let mut buf = Vec::with_capacity(37);
         self.vision.remove_source(&self.map, civ, old_tile, def.sight, &mut buf);
@@ -684,6 +695,9 @@ impl World {
         // Road on city tile
         self.map.road[ti] = crate::types::Road::Road;
         self.map.improvement[ti] = crate::types::Improvement::None;
+        self.map.pillaged[ti] = false;
+        self.map.work_order[ti] = None;
+        self.map.work_turns_left[ti] = 0;
 
         let mut buf = Vec::with_capacity(37);
         self.vision.add_source(&self.map, civ, tile, 2, &mut buf);
@@ -742,6 +756,7 @@ impl World {
                 mix(&mut h, self.units.formation[i] as u64);
                 mix(&mut h, self.units.hp[i] as u64);
                 mix(&mut h, self.units.xp[i] as u64);
+                mix(&mut h, self.units.working[i] as u64);
             }
         }
         for i in 0..self.cities.len() {
@@ -756,10 +771,20 @@ impl World {
             }
         }
         mix(&mut h, self.wonders_built);
+        for t in 0..self.map.num_tiles {
+            let imp = self.map.improvement[t] as u64;
+            let rd = self.map.road[t] as u64;
+            let pil = self.map.pillaged[t] as u64;
+            let wt = self.map.work_turns_left[t] as u64;
+            if imp != 0 || rd != 0 || pil != 0 || wt != 0 {
+                mix(&mut h, (t as u64) | (imp << 24) | (rd << 32) | (pil << 36) | (wt << 40));
+            }
+        }
         for c in &self.civs {
             mix(&mut h, c.alive as u64);
             mix(&mut h, c.gold as u64);
-            mix(&mut h, c.tech_bits);
+            mix(&mut h, c.tech_bits as u64);
+            mix(&mut h, (c.tech_bits >> 64) as u64);
             mix(&mut h, c.policy_bits as u64);
             mix(&mut h, c.culture_stored as u64);
             mix(&mut h, c.tech_progress as u64);

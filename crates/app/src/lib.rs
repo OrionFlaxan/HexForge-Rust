@@ -16,15 +16,15 @@ use crate::storage::{has_save, load_slot, save_slot};
 use hexforge_sim::ai::speculative::SpeculativePlanner;
 use hexforge_sim::combat::{attack_city, attack_unit, merge_units};
 use hexforge_sim::economy::{recompute_all_civs, rush_buy};
+use hexforge_sim::improvements::{pillage_tile, start_worker_order};
 use hexforge_sim::mapgen::generate_world;
 use hexforge_sim::pathing::{
-    compute_reachable_tiles, human_worker_build_road, human_worker_improve, list_attackable_tiles,
-    move_unit_along_path, ReachableSet,
+    compute_reachable_tiles, list_attackable_tiles, move_unit_along_path, ReachableSet,
 };
 use hexforge_sim::policies::adopt_policy;
 use hexforge_sim::ruleset::Ruleset;
 use hexforge_sim::types::{
-    DiploStatus, GameConfig, Road, TileId, UnitId, UnitRole, INVALID_CITY, INVALID_UNIT,
+    DiploStatus, GameConfig, TileId, UnitId, UnitRole, INVALID_CITY, INVALID_UNIT,
 };
 use hexforge_sim::world::World;
 use hexforge_sim::{end_human_turn, step_full_turn, TurnMetrics};
@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 pub fn window_conf() -> Conf {
     Conf {
-        window_title: "HexForge-Rust v0.3 — Pure-Rust 4X".to_owned(),
+        window_title: "HexForge-Rust v0.4 — Pure-Rust 4X".to_owned(),
         window_width: 1280,
         window_height: 760,
         high_dpi: true,
@@ -85,7 +85,7 @@ impl Session {
         }
         let reveal_all = viewer.is_none() || !world.config.rules.fog_of_war;
         let mut gui = GameUiState::default();
-        gui.tech_era_tab = world.config.rules.start_era.min(5);
+        gui.tech_era_tab = world.config.rules.start_era.min(8);
         Self {
             world,
             cam,
@@ -143,6 +143,8 @@ impl Session {
                 && self.world.units.civ[idx] == hciv
                 && self.world.units.moves_halves[idx] > 0
                 && !self.world.units.fortified[idx]
+                && !self.world.units.working[idx]
+                && !self.world.units.auto_work[idx]
             {
                 let uid = idx as UnitId;
                 self.selected_unit = Some(uid);
@@ -315,21 +317,31 @@ pub async fn run_game() {
                         }
                     }
                 }
-                HudAction::BuildImprovement(uid) => {
-                    if human_worker_improve(&mut sess.world, uid) {
-                        recompute_all_civs(&mut sess.world, &rules);
+                HudAction::StartWorkerOrder(uid, order) => {
+                    if start_worker_order(&mut sess.world, &rules, uid, order) {
+                        let rem = sess.world.map.work_turns_left[sess.world.units.pos[uid as usize] as usize];
+                        sess.gui.modal.0 = ActiveModal::None;
                         sess.refresh_selection_overlays(&rules);
-                        sess.set_toast("Tile improved!");
+                        sess.set_toast(format!("Worker started {} ({}t)!", order.name(), rem));
                     }
                 }
-                HudAction::BuildRoad(uid) => {
-                    if let Some(kind) = human_worker_build_road(&mut sess.world, &rules, uid) {
-                        sess.refresh_selection_overlays(&rules);
-                        sess.set_toast(match kind {
-                            Road::Railroad => "Railroad built!",
-                            Road::Road => "Road built!",
-                            Road::None => "",
+                HudAction::ToggleAutoWork(uid) => {
+                    if sess.world.units.is_alive(uid) {
+                        let ui_idx = uid as usize;
+                        sess.world.units.auto_work[ui_idx] = !sess.world.units.auto_work[ui_idx];
+                        let on = sess.world.units.auto_work[ui_idx];
+                        sess.set_toast(if on {
+                            "Worker AUTO WORK enabled (runs on End Turn)"
+                        } else {
+                            "Worker AUTO WORK disabled"
                         });
+                    }
+                }
+                HudAction::PillageTile(uid) => {
+                    if pillage_tile(&mut sess.world, &rules, uid) {
+                        recompute_all_civs(&mut sess.world, &rules);
+                        sess.refresh_selection_overlays(&rules);
+                        sess.set_toast("Pillaged tile! (+20 Gold, +20 HP)");
                     }
                 }
                 HudAction::FortifyUnit(uid) => {
@@ -525,7 +537,7 @@ fn handle_map_tap(sess: &mut Session, rules: &Ruleset, tid: TileId) {
                     if role == UnitRole::Settler {
                         sess.set_toast("Tap FOUND CITY below to settle here");
                     } else if role == UnitRole::Air {
-                        sess.set_toast("Air unit rebased to friendly city!");
+                        sess.set_toast("Air unit rebased!");
                     }
                     sess.refresh_selection_overlays(rules);
                     return;

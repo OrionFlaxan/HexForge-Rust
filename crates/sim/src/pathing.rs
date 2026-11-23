@@ -1,5 +1,5 @@
 use crate::ruleset::Ruleset;
-use crate::types::{Elevation, Road, TileId, UnitId, INVALID_CITY, INVALID_TILE, INVALID_UNIT};
+use crate::types::{Improvement, TileId, UnitId, INVALID_CITY, INVALID_TILE, INVALID_UNIT, NO_CIV};
 use crate::world::World;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -35,7 +35,7 @@ impl ReachableSet {
 }
 
 /// Compute all tiles reachable by `unit` within its remaining movement points this turn.
-/// For Air units, returns friendly unoccupied city tiles within rebase range (`range * 2`).
+/// For Air units, returns friendly unoccupied city tiles & Forward Airbase tiles within rebase range (`range * 2`).
 pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> ReachableSet {
     if !world.units.is_alive(unit) {
         return ReachableSet {
@@ -55,7 +55,7 @@ pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> 
     let civ = world.units.civ[ui];
     let def = &rules.units[world.units.kind[ui] as usize];
 
-    // Air units rebase between friendly cities within `2 * range`
+    // Air units rebase between friendly cities AND unpillaged friendly/neutral Forward Airbases within `2 * range`
     if def.role.is_air() {
         let rebase_range = (def.range as u16) * 2;
         let mut tiles = Vec::new();
@@ -69,6 +69,21 @@ pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> 
                 {
                     tiles.push((cpos, budget));
                     parent.push((cpos, start));
+                }
+            }
+        }
+        for t in 0..world.map.num_tiles {
+            if world.map.improvement[t] == Improvement::Airbase
+                && !world.map.pillaged[t]
+                && (world.map.owner[t] == civ || world.map.owner[t] == NO_CIV)
+            {
+                let tid = t as TileId;
+                if tid != start
+                    && world.units.tile_mil_unit[t] == INVALID_UNIT
+                    && world.map.distance(start, tid) <= rebase_range
+                {
+                    tiles.push((tid, budget));
+                    parent.push((tid, start));
                 }
             }
         }
@@ -245,58 +260,4 @@ pub fn list_attackable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> Ve
         }
     }
     out
-}
-
-/// Worker builds the best terrain improvement on its current tile.
-pub fn human_worker_improve(world: &mut World, unit: UnitId) -> bool {
-    if !world.units.is_alive(unit) {
-        return false;
-    }
-    let ui = unit as usize;
-    if world.units.moves_halves[ui] == 0 {
-        return false;
-    }
-    let pos = world.units.pos[ui];
-    let pi = pos as usize;
-    let civ = world.units.civ[ui];
-    if world.map.owner[pi] != civ || world.cities.tile_city[pi] != INVALID_CITY {
-        return false;
-    }
-    if world.map.elevation[pi] == Elevation::Mountain || !world.map.terrain[pi].is_land() {
-        return false;
-    }
-    let imp = crate::economy::best_improvement_for_tile(&world.map, pos);
-    if imp == crate::types::Improvement::None || world.map.improvement[pi] == imp {
-        return false;
-    }
-    world.map.improvement[pi] = imp;
-    world.units.moves_halves[ui] = 0;
-    true
-}
-
-/// Worker builds a Road (with The Wheel) or upgrades to a Railroad (with Steam Power) on its tile!
-pub fn human_worker_build_road(world: &mut World, rules: &Ruleset, unit: UnitId) -> Option<Road> {
-    if !world.units.is_alive(unit) {
-        return None;
-    }
-    let ui = unit as usize;
-    if world.units.moves_halves[ui] == 0 {
-        return None;
-    }
-    let pos = world.units.pos[ui];
-    let pi = pos as usize;
-    if !world.map.terrain[pi].is_land() || world.map.elevation[pi] == Elevation::Mountain {
-        return None;
-    }
-    let techs = world.civs[world.units.civ[ui] as usize].tech_bits;
-    let next_road = if Ruleset::has_tech(techs, rules.railroad_tech) && world.map.road[pi] != Road::Railroad {
-        Road::Railroad
-    } else if Ruleset::has_tech(techs, rules.road_tech) && world.map.road[pi] == Road::None {
-        Road::Road
-    } else {
-        return None;
-    };
-    world.map.road[pi] = next_road;
-    world.units.moves_halves[ui] = 0;
-    Some(next_road)
 }

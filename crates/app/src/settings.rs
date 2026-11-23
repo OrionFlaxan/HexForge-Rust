@@ -106,11 +106,11 @@ impl UiMetrics {
 
         let scale = (base_scale * options.ui_scale_mult).clamp(0.8, 3.8);
 
-        // Cap bars so map viewport always retains >= 58% of screen height even at max UI scale
+        // Cap bars so map viewport always retains >= 60% of screen height even at max UI scale
         let raw_top = if is_portrait { 76.0 * scale } else { 56.0 * scale };
-        let raw_bot = if is_portrait { 126.0 * scale } else { 88.0 * scale };
+        let raw_bot = if is_portrait { 108.0 * scale } else { 88.0 * scale };
         let top_bar_h = raw_top.min(sh * 0.16);
-        let bottom_bar_h = raw_bot.min(sh * 0.25);
+        let bottom_bar_h = raw_bot.min(sh * 0.22);
 
         Self {
             sw,

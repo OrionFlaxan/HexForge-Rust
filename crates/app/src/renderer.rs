@@ -228,7 +228,7 @@ pub fn render_world(
                     }
                 }
 
-                // Roads & Railroads
+                // Roads, Railroads & 16 Distinct Tile Improvements
                 if r_dp >= 15.0 {
                     match map.road[ti] {
                         Road::Road => {
@@ -240,9 +240,97 @@ pub fn render_world(
                         }
                         Road::None => {}
                     }
-                    if map.improvement[ti] != Improvement::None && world.cities.tile_city[ti] == INVALID_CITY {
-                        let ic = dim_color(Color::from_rgba(244, 218, 128, 225), dim);
-                        draw_rectangle_lines(sx - r * 0.24, sy + r * 0.26, r * 0.48, r * 0.18, ui.dp(1.3), ic);
+                    let imp = map.improvement[ti];
+                    if imp != Improvement::None && world.cities.tile_city[ti] == INVALID_CITY {
+                        let ix = sx;
+                        let iy = sy + r * 0.30;
+                        match imp {
+                            Improvement::Farm => {
+                                let c = dim_color(Color::from_rgba(236, 206, 88, 235), dim);
+                                draw_rectangle_lines(ix - r * 0.24, iy - r * 0.08, r * 0.48, r * 0.18, ui.dp(1.3), c);
+                                draw_line(ix - r * 0.22, iy + r * 0.01, ix + r * 0.22, iy + r * 0.01, ui.dp(1.1), c);
+                            }
+                            Improvement::TerraceFarm => {
+                                let c = dim_color(Color::from_rgba(148, 230, 96, 235), dim);
+                                draw_line(ix - r * 0.26, iy - r * 0.06, ix + r * 0.26, iy - r * 0.06, ui.dp(1.6), c);
+                                draw_line(ix - r * 0.20, iy + r * 0.02, ix + r * 0.20, iy + r * 0.02, ui.dp(1.6), c);
+                                draw_line(ix - r * 0.14, iy + r * 0.10, ix + r * 0.14, iy + r * 0.10, ui.dp(1.6), c);
+                            }
+                            Improvement::Mine | Improvement::Quarry => {
+                                let c = dim_color(Color::from_rgba(196, 178, 142, 240), dim);
+                                draw_triangle_lines(
+                                    vec2(ix - r * 0.18, iy + r * 0.10),
+                                    vec2(ix, iy - r * 0.14),
+                                    vec2(ix + r * 0.18, iy + r * 0.10),
+                                    ui.dp(1.6),
+                                    c,
+                                );
+                            }
+                            Improvement::Pasture | Improvement::Plantation | Improvement::Camp => {
+                                let c = dim_color(Color::from_rgba(218, 178, 108, 235), dim);
+                                draw_poly_lines(ix, iy, 4, r * 0.16, 0.0, ui.dp(1.4), c);
+                            }
+                            Improvement::LumberMill => {
+                                let c = dim_color(Color::from_rgba(182, 118, 62, 240), dim);
+                                draw_rectangle(ix - r * 0.16, iy - r * 0.08, r * 0.32, r * 0.16, c);
+                            }
+                            Improvement::TradingPost => {
+                                let c = dim_color(Color::from_rgba(255, 214, 62, 240), dim);
+                                draw_poly(ix, iy, 4, r * 0.15, 0.0, c);
+                            }
+                            Improvement::Fort => {
+                                let c = dim_color(Color::from_rgba(202, 212, 224, 245), dim);
+                                draw_poly_lines(sx, sy, 5, r * 0.50, -90.0, ui.dp(2.0), c);
+                            }
+                            Improvement::OilWell => {
+                                let c = dim_color(Color::from_rgba(32, 36, 44, 245), dim);
+                                draw_triangle(
+                                    vec2(ix - r * 0.12, iy + r * 0.10),
+                                    vec2(ix, iy - r * 0.20),
+                                    vec2(ix + r * 0.12, iy + r * 0.10),
+                                    c,
+                                );
+                            }
+                            Improvement::PowerPlant | Improvement::SolarFarm => {
+                                let c = dim_color(Color::from_rgba(74, 198, 250, 240), dim);
+                                draw_rectangle(ix - r * 0.22, iy - r * 0.08, r * 0.44, r * 0.16, c);
+                                draw_rectangle_lines(ix - r * 0.22, iy - r * 0.08, r * 0.44, r * 0.16, ui.dp(1.2), YELLOW);
+                            }
+                            Improvement::ResearchOutpost => {
+                                let c = dim_color(Color::from_rgba(92, 232, 255, 240), dim);
+                                draw_circle(ix, iy, r * 0.14, c);
+                                draw_circle_lines(ix, iy, r * 0.20, ui.dp(1.2), WHITE);
+                            }
+                            Improvement::Airbase => {
+                                let c = dim_color(Color::from_rgba(128, 220, 255, 245), dim);
+                                draw_poly_lines(sx, sy, 5, r * 0.52, -90.0, ui.dp(1.9), c);
+                                draw_line(sx - r * 0.28, sy + r * 0.24, sx + r * 0.28, sy + r * 0.24, ui.dp(2.2), WHITE);
+                            }
+                            Improvement::Arcology => {
+                                let c = dim_color(Color::from_rgba(116, 246, 212, 245), dim);
+                                draw_poly(ix, iy - r * 0.04, 6, r * 0.20, 0.0, dim_color(Color::from_rgba(32, 92, 118, 220), dim));
+                                draw_poly_lines(ix, iy - r * 0.04, 6, r * 0.20, 0.0, ui.dp(1.6), c);
+                            }
+                            Improvement::None => {}
+                        }
+
+                        // Pillaged indicator (bright red/orange flame X!)
+                        if map.pillaged[ti] {
+                            let pc = dim_color(Color::from_rgba(255, 72, 42, 245), dim);
+                            draw_line(ix - r * 0.18, iy - r * 0.14, ix + r * 0.18, iy + r * 0.14, ui.dp(2.2), pc);
+                            draw_line(ix + r * 0.18, iy - r * 0.14, ix - r * 0.18, iy + r * 0.14, ui.dp(2.2), pc);
+                        }
+                    }
+
+                    // Active multi-turn construction progress pill on hex
+                    if map.work_order[ti].is_some() && map.work_turns_left[ti] > 0 && r_dp >= 18.0 {
+                        let lbl = format!("{}t", map.work_turns_left[ti]);
+                        let fs = (r * 0.34).clamp(ui.fs(9.5), ui.fs(15.0));
+                        let bx = sx - r * 0.44;
+                        let by_p = sy - r * 0.48;
+                        draw_rectangle(bx, by_p, ui.dp(22.0), ui.dp(14.0), Color::from_rgba(28, 22, 12, 220));
+                        draw_rectangle_lines(bx, by_p, ui.dp(22.0), ui.dp(14.0), ui.dp(1.1), Color::from_rgba(250, 206, 62, 240));
+                        draw_text(&lbl, bx + ui.dp(3.0), by_p + ui.dp(11.0), fs, Color::from_rgba(255, 224, 86, 255));
                     }
                 }
 
@@ -264,23 +352,32 @@ pub fn render_world(
                     draw_circle_lines(sx + r * 0.36, sy - r * 0.30, pr, ui.dp(1.0), Color::from_rgba(15, 18, 24, 200));
                 }
 
-                // Optional Tile Yield Dots (Food=Green, Prod=Orange, Gold=Yellow)
+                // Optional Tile Yield Dots (Food=Green, Prod=Orange, Gold=Yellow, Sci=Cyan)
                 if options.show_tile_yields && r_dp >= 22.0 && map.elevation[ti] != Elevation::Mountain {
-                    let y = tile_yields(map, tid);
+                    let owner_techs = if owner != NO_CIV {
+                        world.civs[owner as usize].tech_bits
+                    } else {
+                        0
+                    };
+                    let y = tile_yields(map, rules, tid, owner_techs);
                     let pip_r = (r * 0.08).max(ui.dp(2.0));
-                    let py = sy + r * 0.42;
-                    let mut px = sx - r * 0.32;
+                    let py = sy + r * 0.44;
+                    let mut px = sx - r * 0.34;
                     for _ in 0..y.food.clamp(0, 4) {
                         draw_circle(px, py, pip_r, dim_color(Color::from_rgba(92, 232, 92, 240), dim));
-                        px += pip_r * 2.2;
+                        px += pip_r * 2.1;
                     }
                     for _ in 0..y.prod.clamp(0, 4) {
                         draw_circle(px, py, pip_r, dim_color(Color::from_rgba(242, 152, 52, 240), dim));
-                        px += pip_r * 2.2;
+                        px += pip_r * 2.1;
                     }
                     for _ in 0..y.gold.clamp(0, 3) {
                         draw_circle(px, py, pip_r, dim_color(Color::from_rgba(255, 224, 58, 240), dim));
-                        px += pip_r * 2.2;
+                        px += pip_r * 2.1;
+                    }
+                    for _ in 0..y.science.clamp(0, 3) {
+                        draw_circle(px, py, pip_r, dim_color(Color::from_rgba(72, 220, 255, 240), dim));
+                        px += pip_r * 2.1;
                     }
                 }
 
@@ -466,6 +563,14 @@ pub fn render_world(
                 let gfs = (badge_r * 1.15).clamp(ui.fs(10.0), ui.fs(22.0));
                 let gdim = measure_text(glyph, None, gfs as u16, 1.0);
                 draw_text(glyph, sx - gdim.width * 0.5, sy + gdim.height * 0.35, gfs, ac);
+            }
+            if world.units.auto_work[u] && r_dp >= 13.0 {
+                draw_circle(
+                    sx + badge_r * 0.78,
+                    sy - badge_r * 0.72,
+                    (badge_r * 0.28).clamp(ui.dp(2.5), ui.dp(5.5)),
+                    Color::from_rgba(68, 232, 126, 255),
+                );
             }
 
             let form = world.units.formation[u];

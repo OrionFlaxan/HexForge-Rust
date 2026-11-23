@@ -4,11 +4,15 @@ pub mod theater;
 
 use crate::ai::scratch::with_tls_scratch;
 use crate::ai::theater::{compute_land_flow_field, compute_threat_field, TheaterField};
-use crate::combat::{attack_city, attack_unit, can_merge_units, city_bombard, find_merge_partner, merge_units, preview_unit_combat};
-use crate::economy::{best_improvement_for_tile, pick_next_available_tech, tile_yields};
+use crate::combat::{
+    attack_city, attack_unit, can_merge_units, city_bombard, find_merge_partner, merge_units,
+    preview_unit_combat,
+};
+use crate::economy::{pick_next_available_tech, tile_yields};
+use crate::improvements::{best_ai_worker_order, can_pillage_tile, pillage_tile, start_worker_order};
 use crate::ruleset::Ruleset;
 use crate::types::{
-    CityId, CivId, DiploStatus, Elevation, Improvement, ProductionItem, TechId, TileId,
+    CityId, CivId, DiploStatus, Elevation, ProductionItem, TechBits, TechId, TileId,
     UnitFormation, UnitId, UnitRole, INVALID_CITY, INVALID_TILE, INVALID_UNIT, NO_CIV,
 };
 use crate::world::World;
@@ -168,7 +172,7 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         && own_cities.len() < 6;
 
     let settle_target = if num_settlers > 0 {
-        find_best_settle_tile(world, civ, &own_cities)
+        find_best_settle_tile(world, rules, civ, &own_cities)
     } else {
         None
     };
@@ -351,15 +355,13 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
                 None
             };
 
-            // Worker flow-field: unimproved owned tiles near own cities
+            // Worker flow-field: owned tiles needing repair, improvement, drainage, or upgrade
             let worker_flow = if num_workers > 0 {
                 let mut work_tiles = Vec::with_capacity(32);
                 for t in 0..world.map.num_tiles {
                     if world.map.owner[t] == civ
-                        && world.map.improvement[t] == Improvement::None
-                        && world.cities.tile_city[t] == INVALID_CITY
-                        && best_improvement_for_tile(&world.map, t as TileId) != Improvement::None
                         && threat[t] > 3
+                        && best_ai_worker_order(world, rules, civ, t as TileId).is_some()
                     {
                         work_tiles.push(t as TileId);
                     }
@@ -542,35 +544,75 @@ fn execute_settler(world: &mut World, rules: &Ruleset, uid: UnitId, plan: &CivPl
 }
 
 fn execute_worker(world: &mut World, rules: &Ruleset, uid: UnitId, plan: &CivPlan) {
-    let civ = world.units.civ[uid as usize];
-    let pos = world.units.pos[uid as usize];
-    let pi = pos as usize;
+    let ui = uid as usize;
+    if world.units.working[ui] {
+        return; // Actively completing a multi-turn order on its current hex
+    }
+    let civ = world.units.civ[ui];
+    let pos = world.units.pos[ui];
 
-    // Build improvement immediately if standing on an unimproved owned tile
-    if world.map.owner[pi] == civ
-        && world.map.improvement[pi] == Improvement::None
-        && world.cities.tile_city[pi] == INVALID_CITY
-    {
-        let imp = best_improvement_for_tile(&world.map, pos);
-        if imp != Improvement::None {
-            world.map.improvement[pi] = imp;
-            world.units.moves_halves[uid as usize] = 0;
-            return;
-        }
+    if let Some(order) = best_ai_worker_order(world, rules, civ, pos) {
+        start_worker_order(world, rules, uid, order);
+        return;
     }
     if let Some(ref flow) = plan.worker_flow {
         follow_flow_field(world, rules, uid, flow, true);
         if world.units.is_alive(uid) && world.units.moves_halves[uid as usize] > 0 {
             let np = world.units.pos[uid as usize];
-            let npi = np as usize;
-            if world.map.owner[npi] == civ
-                && world.map.improvement[npi] == Improvement::None
-                && world.cities.tile_city[npi] == INVALID_CITY
+            if let Some(order) = best_ai_worker_order(world, rules, civ, np) {
+                start_worker_order(world, rules, uid, order);
+            }
+        }
+    }
+}
+
+/// Automatically move and assign smart realistic builds for human Workers with `AUTO WORK` enabled.
+pub fn execute_human_auto_workers(world: &mut World, rules: &Ruleset, civ: CivId) {
+    let mut auto_workers: Vec<UnitId> = Vec::new();
+    for u in 0..world.units.len() {
+        if world.units.alive[u]
+            && world.units.civ[u] == civ
+            && world.units.auto_work[u]
+            && !world.units.working[u]
+            && world.units.moves_halves[u] > 0
+            && rules.units[world.units.kind[u] as usize].role == UnitRole::Worker
+        {
+            auto_workers.push(u as UnitId);
+        }
+    }
+    if auto_workers.is_empty() {
+        return;
+    }
+
+    let worker_flow = with_tls_scratch(|scratch| {
+        let threat = compute_threat_field(world, civ, scratch);
+        let mut work_tiles = Vec::with_capacity(32);
+        for t in 0..world.map.num_tiles {
+            if world.map.owner[t] == civ
+                && threat[t] > 3
+                && best_ai_worker_order(world, rules, civ, t as TileId).is_some()
             {
-                let imp = best_improvement_for_tile(&world.map, np);
-                if imp != Improvement::None {
-                    world.map.improvement[npi] = imp;
-                    world.units.moves_halves[uid as usize] = 0;
+                work_tiles.push(t as TileId);
+            }
+        }
+        compute_land_flow_field(world, civ, &work_tiles, 28, scratch)
+    });
+
+    for uid in auto_workers {
+        if !world.units.is_alive(uid) || world.units.working[uid as usize] {
+            continue;
+        }
+        let pos = world.units.pos[uid as usize];
+        if let Some(order) = best_ai_worker_order(world, rules, civ, pos) {
+            start_worker_order(world, rules, uid, order);
+            continue;
+        }
+        if let Some(ref flow) = worker_flow {
+            follow_flow_field(world, rules, uid, flow, true);
+            if world.units.is_alive(uid) && world.units.moves_halves[uid as usize] > 0 {
+                let np = world.units.pos[uid as usize];
+                if let Some(order) = best_ai_worker_order(world, rules, civ, np) {
+                    start_worker_order(world, rules, uid, order);
                 }
             }
         }
@@ -581,18 +623,23 @@ fn execute_land_combat(world: &mut World, rules: &Ruleset, uid: UnitId, plan: &C
     let civ = world.units.civ[uid as usize];
     let hp = world.units.hp[uid as usize];
 
-    // 1. Try attacking immediately if an enemy unit or city is already in range
+    // 1. Pillage enemy improvement if wounded or standing right on an unpillaged enemy tile (+20G / +20HP!)
+    if hp < 80 && can_pillage_tile(world, rules, uid) {
+        pillage_tile(world, rules, uid);
+    }
+
+    // 2. Try attacking immediately if an enemy unit or city is already in range
     if try_local_attack(world, rules, uid) {
         return;
     }
 
-    // 2. Wounded units fortify/heal when safe or near friendly cities
-    if hp < 45 {
+    // 3. Wounded units fortify/heal when safe or near friendly cities
+    if world.units.hp[uid as usize] < 45 {
         world.units.fortified[uid as usize] = true;
         return;
     }
 
-    // 3. Pick active Theater Flow-Field in O(1): Defense > Attack > Explore
+    // 4. Pick active Theater Flow-Field in O(1): Defense > Attack > Explore
     let pos = world.units.pos[uid as usize];
     let chosen_flow = if let Some(ref df) = plan.defense_flow {
         if df.dist_at(pos) <= 18 {
@@ -608,7 +655,10 @@ fn execute_land_combat(world: &mut World, rules: &Ruleset, uid: UnitId, plan: &C
         follow_flow_field(world, rules, uid, flow, false);
     }
 
-    // 4. After moving, check if an attack or Corps/Army merge is now available!
+    // 5. After moving, pillage enemy tile, attack, merge Corps/Army, or fortify
+    if world.units.is_alive(uid) && can_pillage_tile(world, rules, uid) {
+        pillage_tile(world, rules, uid);
+    }
     if world.units.is_alive(uid) && !world.units.has_attacked[uid as usize] {
         if !try_local_attack(world, rules, uid) {
             if Ruleset::has_tech(world.civs[civ as usize].tech_bits, rules.corps_tech) {
@@ -824,7 +874,7 @@ fn can_found_here_good(world: &World, tile: TileId) -> bool {
     true
 }
 
-fn find_best_settle_tile(world: &World, civ: CivId, own_cities: &[CityId]) -> Option<TileId> {
+fn find_best_settle_tile(world: &World, rules: &Ruleset, civ: CivId, own_cities: &[CityId]) -> Option<TileId> {
     let mut best: Option<(TileId, i32)> = None;
     for t in 0..world.map.num_tiles {
         let tid = t as TileId;
@@ -855,11 +905,11 @@ fn find_best_settle_tile(world: &World, civ: CivId, own_cities: &[CityId]) -> Op
             continue;
         }
         let mut score = if world.map.has_river(tid) { 10 } else { 0 };
-        let cy = tile_yields(&world.map, tid);
+        let cy = tile_yields(&world.map, rules, tid, 0);
         score += cy.total() * 3;
         for &nb in world.map.neighbors_of(tid) {
             if nb != INVALID_TILE {
-                let y = tile_yields(&world.map, nb);
+                let y = tile_yields(&world.map, rules, nb, 0);
                 score += (y.food as i32) * 3 + (y.prod as i32) * 3 + (y.gold as i32);
             }
         }
@@ -870,7 +920,7 @@ fn find_best_settle_tile(world: &World, civ: CivId, own_cities: &[CityId]) -> Op
     best.map(|(t, _)| t)
 }
 
-fn pick_ai_tech(tech_bits: u64, science_bias: u8, aggression: u8, rules: &Ruleset) -> Option<TechId> {
+fn pick_ai_tech(tech_bits: TechBits, science_bias: u8, aggression: u8, rules: &Ruleset) -> Option<TechId> {
     let mut best: Option<(TechId, i32)> = None;
     for t in &rules.techs {
         if !rules.can_research(tech_bits, t.id) {

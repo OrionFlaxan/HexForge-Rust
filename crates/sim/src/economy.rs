@@ -1,16 +1,17 @@
 use crate::hex::HexMapSoA;
+use crate::improvements::{advance_worker_orders_for_civ, improvement_yields};
 use crate::policies::{adopt_policy, aggregate_policy_bonuses, pick_ai_policy, policy_cost};
 use crate::ruleset::Ruleset;
 use crate::types::{
-    CityId, CivId, Elevation, Feature, Improvement, ProductionItem, Resource, Terrain, TileId,
-    VictoryKind, VictoryState, Yields, INVALID_TILE, NO_CIV, VICTORY_DOMINATION, VICTORY_SCIENCE,
-    VICTORY_SCORE,
+    CityId, CivId, Elevation, Feature, Improvement, ProductionItem, Resource, Road, TechBits,
+    Terrain, TileId, VictoryKind, VictoryState, Yields, INVALID_TILE, NO_CIV, VICTORY_DOMINATION,
+    VICTORY_SCIENCE, VICTORY_SCORE,
 };
 use crate::world::World;
 
-/// Zero-allocation stack computation of a single tile's yields.
+/// Zero-allocation stack computation of a single tile's yields (including tech-scaled improvements & pillaging).
 #[inline]
-pub fn tile_yields(map: &HexMapSoA, tile: TileId) -> Yields {
+pub fn tile_yields(map: &HexMapSoA, rules: &Ruleset, tile: TileId, owner_techs: TechBits) -> Yields {
     let i = tile as usize;
     let mut y = match map.terrain[i] {
         Terrain::Ocean => Yields::new(1, 0, 1, 0, 0),
@@ -68,52 +69,14 @@ pub fn tile_yields(map: &HexMapSoA, tile: TileId) -> Yields {
         }
         Resource::None => {}
     }
-    match map.improvement[i] {
-        Improvement::Farm => y.food += if map.has_river(tile) { 2 } else { 1 },
-        Improvement::Mine => y.prod += 2,
-        Improvement::Pasture => {
-            y.food += 1;
-            y.prod += 1;
-        }
-        Improvement::TradingPost => y.gold += 2,
-        Improvement::LumberMill => y.prod += 2,
-        Improvement::OilWell => {
-            y.prod += 2;
-            y.gold += 2;
-        }
-        Improvement::None => {}
+    let imp = map.improvement[i];
+    if imp != Improvement::None && !map.pillaged[i] {
+        y.add_assign(improvement_yields(map, rules, tile, imp, owner_techs));
     }
     y
 }
 
-#[inline]
-pub fn best_improvement_for_tile(map: &HexMapSoA, tile: TileId) -> Improvement {
-    let i = tile as usize;
-    if !map.terrain[i].is_land() || map.elevation[i] == Elevation::Mountain {
-        return Improvement::None;
-    }
-    match map.resource[i] {
-        Resource::Wheat => return Improvement::Farm,
-        Resource::Cattle | Resource::Horses => return Improvement::Pasture,
-        Resource::Iron | Resource::Gold | Resource::Gems | Resource::Uranium => return Improvement::Mine,
-        Resource::Oil => return Improvement::OilWell,
-        Resource::None => {}
-    }
-    if map.elevation[i] == Elevation::Hill {
-        return Improvement::Mine;
-    }
-    match map.feature[i] {
-        Feature::Forest => Improvement::LumberMill,
-        Feature::Jungle => Improvement::TradingPost,
-        _ => match map.terrain[i] {
-            Terrain::Grassland | Terrain::Plains => Improvement::Farm,
-            Terrain::Desert | Terrain::Tundra => Improvement::TradingPost,
-            _ => Improvement::None,
-        },
-    }
-}
-
-/// Compute yields of a city with zero-allocation citizen ranking, buildings/wonders, Civ Trait, Policies & Difficulty.
+/// Compute yields of a city with zero-allocation citizen ranking, buildings/wonders, Railroads, Civ Trait, Policies & Difficulty.
 pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yields {
     let ci = city as usize;
     let cpos = world.cities.pos[ci];
@@ -122,8 +85,9 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
     let cs = &world.civs[civ as usize];
     let tpl = &rules.civs[cs.template_idx as usize];
     let pbonus = aggregate_policy_bonuses(rules, cs.policy_bits);
+    let techs = cs.tech_bits;
 
-    let center = tile_yields(&world.map, cpos);
+    let center = tile_yields(&world.map, rules, cpos, techs);
     let mut total = Yields::new(
         center.food.max(2) + tpl.city_food + pbonus.city_food,
         center.prod.max(1) + if world.cities.is_capital[ci] { 2 } else { 0 } + pbonus.city_prod,
@@ -146,7 +110,7 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
             visited[vlen] = n1;
             vlen += 1;
             if world.map.owner[n1 as usize] == civ && count < 18 {
-                let y = tile_yields(&world.map, n1);
+                let y = tile_yields(&world.map, rules, n1, techs);
                 let rank = (y.food as i32) * 32 + (y.prod as i32) * 28 + (y.science as i32) * 25 + (y.gold as i32) * 14;
                 tile_scores[count] = (rank, y);
                 count += 1;
@@ -163,7 +127,7 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
                 visited[vlen] = n2;
                 vlen += 1;
                 if world.map.owner[n2 as usize] == civ && count < 18 {
-                    let y = tile_yields(&world.map, n2);
+                    let y = tile_yields(&world.map, rules, n2, techs);
                     let rank =
                         (y.food as i32) * 32 + (y.prod as i32) * 28 + (y.science as i32) * 25 + (y.gold as i32) * 14;
                     tile_scores[count] = (rank, y);
@@ -187,6 +151,9 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
 
     let bbits = world.cities.buildings[ci];
     let mut prod_pct = (tpl.prod_pct as i32) + pbonus.prod_pct;
+    if world.map.road[cpos as usize] == Road::Railroad {
+        prod_pct += 15; // Realistic Railroad industrial throughput bonus!
+    }
     let mut gold_pct = (tpl.gold_pct as i32) + pbonus.gold_pct;
     let mut sci_pct = (tpl.sci_pct as i32) + pbonus.sci_pct;
     let mut b_upkeep = 0i16;
@@ -355,11 +322,14 @@ pub fn recompute_all_civs(world: &mut World, rules: &Ruleset) {
     }
 }
 
-/// Advance cities, tech research, culture/policies, treasury, and unit movement for `civ`.
+/// Advance workers, cities, tech research, culture/policies, treasury, and unit movement for `civ`.
 pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
     if !world.civs[civ as usize].alive {
         return;
     }
+    // 0. Advance multi-turn worker orders first so completed improvements & Forest Chops (+20P) apply immediately!
+    advance_worker_orders_for_civ(world, rules, civ);
+
     let speed = world.config.rules.speed;
     let pbonus = aggregate_policy_bonuses(rules, world.civs[civ as usize].policy_bits);
 
@@ -439,7 +409,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
                         world.cities.buildings[ci] |= mask;
                         if bdef.grants_free_tech {
                             if let Some(ft) = pick_next_available_tech(world.civs[civ as usize].tech_bits, rules) {
-                                world.civs[civ as usize].tech_bits |= 1u64 << ft;
+                                world.civs[civ as usize].tech_bits |= 1u128 << ft;
                                 if world.civs[civ as usize].current_tech == Some(ft) {
                                     world.civs[civ as usize].current_tech =
                                         pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
@@ -485,7 +455,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
         let cost = Ruleset::scaled_cost(rules.techs[tech as usize].cost, speed);
         if world.civs[civ as usize].tech_progress >= cost {
             world.civs[civ as usize].tech_progress -= cost;
-            world.civs[civ as usize].tech_bits |= 1u64 << tech;
+            world.civs[civ as usize].tech_bits |= 1u128 << tech;
             world.civs[civ as usize].current_tech = pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
         }
     } else {
@@ -569,7 +539,7 @@ fn expand_city_borders(world: &mut World, city: CityId) {
     }
 }
 
-pub fn pick_next_available_tech(tech_bits: u64, rules: &Ruleset) -> Option<u8> {
+pub fn pick_next_available_tech(tech_bits: TechBits, rules: &Ruleset) -> Option<u8> {
     let mut best: Option<(u8, i32)> = None;
     for t in &rules.techs {
         if rules.can_research(tech_bits, t.id) {

@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag name (e.g. v0.3.0)'
+        description: 'Release tag name (e.g. v0.4.0)'
         required: true
-        default: 'v0.3.0'
+        default: 'v0.4.0'
       prerelease:
         description: 'Mark as pre-release'
         required: false
@@ -124,27 +124,32 @@ jobs:
           fi
 
           cat <<'NOTESEOF' > release-notes.md
-          ## HexForge-Rust v0.3.0 — Mobile DPI UI, Rules/Codex, Options & 6-Era Expansion
+          ## HexForge-Rust v0.4.0 — Unciv-Inspired 9-Era Overhaul, Realistic Workers & Separated City Tabs
 
-          Built from the ground up in **100% Pure Rust** (zero JVM, zero GC) for **Android (all 4 ABIs, API 21+)** and **Desktop** — now redesigned for crisp, thumb-friendly mobile play in **both Portrait and Landscape**!
+          Built from the ground up in **100% Pure Rust** (zero JVM, zero GC) for **Android (all 4 ABIs, API 21+, Portrait & Landscape)** and **Desktop**!
 
-          ### What's New in Update 0.3.0
-          - **True Android High-DPI Scaling + Portrait & Landscape Support:** Reads Android's real `DisplayMetrics.density` (`HEXFORGE_DPI_SCALE`) so every button, HUD bar, font, modal, and hex tile scales cleanly to thumb-friendly proportions on any phone or tablet — plus a **live UI Scale selector (`75%–150%`)** in **Options**!
-          - **Persistent Options & Display Settings (`options.toml`):** Live UI Scale, Tile Yields overlay, Hex Grid toggle, Resource badges, Rust Perf/FPS HUD toggle, Auto-Next Unit, and Autosave interval.
-          - **Custom Game Rules & 22-Civ Picker:** Choose **Difficulty** (`Settler`–`Deity`), **Game Speed** (`Quick`–`Marathon`), **Map Type** (`Continents`, `Pangaea`, `Archipelago`, `Fractal`), **Start Era** (`Ancient`–`Industrial`), **Victory Toggles**, **Corps/Armies & Fog-of-War toggles**, and **any of the 22 Civilizations** (each with a unique Empire Trait!).
-          - **5-Tab In-Game Rules & Codex (Civilopedia):** Browse *How to Play*, *Combat & Corps/Supply Rules*, all *32 Units*, *50 Techs & 10 Unique World Wonders*, and *22 Civs & 20 Social Policies* from both Title and In-Game.
-          - **6 Full Eras, 50 Techs, 32 Units (incl. Air & Naval), 21 Buildings + 10 Unique World Wonders & 5-Tree Social Policies:** Added Air Fighters/Bombers/Stealth Bombers, Submarines/Destroyers, Giant Mech, Worker Roads & Railroads, 10 globally exclusive World Wonders, and 20 Social Policies with **Culture Victory** (12 policies = 3 full trees).
+          ### What's New in Update 0.4.0
+          - **Separated City Production Tabs (`UNITS` | `BLDGS` | `WONDERS` | `BUILT`):** Units, City Buildings, globally exclusive World Wonders, and already-constructed structures each live in their own clean, thumb-friendly tab with live counts and concise yield summaries.
+          - **Realistic Multi-Choice Worker System (`IMPROVE...` Sheet + `AUTO WORK` Toggle):**
+            - **16 Distinct Tile Improvements** across all eras (*Farm, Mine, Pasture, Quarry, Plantation, Camp, Lumber Mill, Terrace Farm, Trading Post, Fort, Oil Well, Power Plant, Solar Farm, Research Outpost, Forward Airbase, Arcology Dome*) with **era-scaling tech yields** (e.g., *Fertilizer* boosts Farms/Pastures, *Chemistry* boosts Mines/Quarries, *Economics* boosts Trading Posts/Plantations/Camps, *Scientific Theory* boosts Lumber Mills).
+            - **Terrain Engineering & Infrastructure:** Multi-turn realistic build progress (`1–4t`, accelerated by *Great Pyramids* & *Citizenship* policy), **Chop Forest (`+20 Prod` to nearest city)**, **Clear Jungle**, **Drain Marsh (`→ Grassland`)**, **Roads**, and **Railroads (`+15% City Production`)**.
+            - **Strategic Fortifications & Combat Pillaging:** Build **Forts (`+50% Defense`)** and **Forward Airbases (`+50% Defense + Air Unit Rebase!`)** on borders; combat units can **PILLAGE** enemy improvements for **`+20 Gold` & `+20 HP`**, while Workers can **Repair** them!
+            - **Late-Game Comfort:** Toggle **`AUTO WORK`** on any Worker so it automatically improves, drains, upgrades, and repairs tiles every turn without nagging!
+          - **Full 9 Eras & 76 Technologies (`u128` O(1) Bitmask):** Complete historical-to-future arc inspired by Unciv (**Ancient → Classical → Medieval → Renaissance → Industrial → Modern → Atomic → Information → Future**) with a thumb-friendly 2-row Era Switcher.
+          - **58 Authentic Units Across All 9 Eras & 9 Roles:** Adds *Chariot Archer, Longswordsman, Explorer, Great War Infantry, Marine, Paratrooper, Exo-Suit Squad, Gatling Gun, Anti-Tank Gun, Anti-Aircraft Gun, Mobile SAM, Plasma Infantry, Landship, Helicopter Gunship, Hover Tank, Trireme, Ironclad, Nuclear Submarine, Missile Cruiser, Great War Fighter, Guided Missile, Orbital Strike Drone*, and *Giant Death Robot*.
+          - **26 Buildings + 12 Globally Unique World Wonders:** Adds *Windmill, Hospital, Solar Plant, Spaceport, Fusion Reactor* + *Statue of Liberty* and *Sydney Opera House* wonders.
 
           ### Included Downloads
-          - **`HexForge-Rust-Android.apk`** (~7.6 MB) — Universal Android 5.0+ APK with all 4 stripped ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`). Installs **side-by-side** alongside Unciv (`com.orionflaxan.hexforge`) — updates cleanly over v0.2.0!
-          - **`HexForge-Rust-Linux-x86_64`** (~1.9 MB) — Standalone native Linux Desktop binary.
-          - **`HexForge-Bench-Linux-x86_64`** (~1.2 MB) — Headless 350-turn stress benchmark CLI.
+          - **`HexForge-Rust-Android.apk`** (~7.7 MB) — Universal Android 5.0+ APK with all 4 stripped ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`). Installs **side-by-side** alongside Unciv (`com.orionflaxan.hexforge`) — updates cleanly over v0.3.0!
+          - **`HexForge-Rust-Linux-x86_64`** (~2.0 MB) — Standalone native Linux Desktop binary.
+          - **`HexForge-Bench-Linux-x86_64`** (~1.3 MB) — Headless 350-turn stress benchmark CLI.
 
-          ### Verified 350-Turn Huge Map Performance (4,992 Tiles, 22 AI Civs, 106 Cities, 927 Formations / 1,522 Unit-Equivalents)
-          - **All 350 Turns Total (Parallel):** **`1.96 seconds`** (**`5.54 ms/turn`** mean)
-          - **Perceived Next-Turn (Speculative AI, 95.2% hit rate):** **`2.51 ms/turn`** overall (**`3.91 ms/turn`** in Turns 301–350)
-          - **Turn-351 Save / Load:** **`3.57 ms`** save (`124 KB`) / **`2.78 ms`** load (Save format v2)
-          - **Strict Determinism:** 1-thread and multi-thread 350-turn simulations produce 100% bit-for-bit identical worlds (`0x5a95e03a5fed7b94`).
+          ### Verified 350-Turn Huge Map Performance (4,992 Tiles, 22 AI Civs, 113 Cities, 951 Formations / 1,498 Unit-Equivalents)
+          - **All 350 Turns Total (Parallel):** **`2.44 seconds`** (**`6.89 ms/turn`** mean; **`9.42 ms/turn`** in Turns 301–350)
+          - **Perceived Next-Turn (Speculative AI, 95.2% hit rate):** **`2.86 ms/turn`** overall (**`5.42 ms/turn`** in Turns 301–350)
+          - **Large 16-Civ 350 Turns:** **`1.27 seconds`** total (**`3.59 ms/turn`** parallel / **`1.44 ms/turn`** speculative)
+          - **Turn-351 Save / Load:** **`3.97 ms`** save (`126.4 KB`) / **`2.63 ms`** load (Save format v3)
+          - **Strict Determinism:** 1-thread and multi-thread 350-turn simulations produce 100% bit-for-bit identical worlds (`0xc3bd7debbe7a6b36`).
           NOTESEOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then

@@ -110,7 +110,7 @@ pub struct CivDef {
     pub cities: Vec<String>,
 }
 
-/// Compiled, integer-indexed 6-Era ruleset — zero string hashing during simulation.
+/// Compiled, integer-indexed 9-Era ruleset — zero string hashing during simulation.
 #[derive(Debug, Clone)]
 pub struct Ruleset {
     pub techs: Vec<TechDef>,
@@ -126,12 +126,37 @@ pub struct Ruleset {
     pub railroad_tech: TechId,
     pub flight_tech: TechId,
     pub science_victory_tech: TechId,
+    // Precomputed tech IDs for realistic improvements & tech-scaled yields (O(1) bit checks)
+    pub mining_tech: Option<TechId>,
+    pub animal_husbandry_tech: Option<TechId>,
+    pub masonry_tech: Option<TechId>,
+    pub calendar_tech: Option<TechId>,
+    pub trapping_tech: Option<TechId>,
+    pub bronze_working_tech: Option<TechId>,
+    pub construction_tech: Option<TechId>,
+    pub engineering_tech: Option<TechId>,
+    pub guilds_tech: Option<TechId>,
+    pub chemistry_tech: Option<TechId>,
+    pub economics_tech: Option<TechId>,
+    pub scientific_theory_tech: Option<TechId>,
+    pub fertilizer_tech: Option<TechId>,
+    pub biology_tech: Option<TechId>,
+    pub electricity_tech: Option<TechId>,
+    pub plastics_tech: Option<TechId>,
+    pub radar_tech: Option<TechId>,
+    pub ecology_tech: Option<TechId>,
+    pub computers_tech: Option<TechId>,
+    pub nanotech_tech: Option<TechId>,
     pub settler_kind: UnitKindId,
     pub worker_kind: UnitKindId,
     pub warrior_kind: UnitKindId,
     pub scout_kind: UnitKindId,
     pub space_center_building: Option<BuildingId>,
+    pub pyramids_building: Option<BuildingId>,
+    pub citizenship_policy: Option<PolicyId>,
 }
+
+pub const NUM_ERAS: u8 = 9;
 
 #[derive(Deserialize)]
 struct RawRuleset {
@@ -316,7 +341,7 @@ impl Ruleset {
 
     pub fn from_toml(src: &str) -> Result<Self, toml::de::Error> {
         let raw: RawRuleset = toml::from_str(src)?;
-        assert!(raw.techs.len() <= 64, "TechBits supports up to 64 techs");
+        assert!(raw.techs.len() <= 128, "TechBits (u128) supports up to 128 techs");
         assert!(raw.buildings.len() <= 64, "BuildingBits supports up to 64 buildings");
         assert!(raw.policies.len() <= 32, "PolicyBits supports up to 32 policies");
 
@@ -341,7 +366,7 @@ impl Ruleset {
                 let pid = *tech_map
                     .get(p.as_str())
                     .unwrap_or_else(|| panic!("Unknown tech prereq '{p}' for '{}'", t.id));
-                prereq_bits |= 1u64 << pid;
+                prereq_bits |= 1u128 << pid;
             }
             let id = i as TechId;
             if t.unlocks_roads {
@@ -385,6 +410,27 @@ impl Ruleset {
                 unlocks_science_victory: t.unlocks_science_victory,
             });
         }
+
+        let mining_tech = tech_map.get("mining").copied();
+        let animal_husbandry_tech = tech_map.get("animal_husbandry").copied();
+        let masonry_tech = tech_map.get("masonry").copied();
+        let calendar_tech = tech_map.get("calendar").copied();
+        let trapping_tech = tech_map.get("trapping").copied();
+        let bronze_working_tech = tech_map.get("bronze_working").copied();
+        let construction_tech = tech_map.get("construction").copied();
+        let engineering_tech = tech_map.get("engineering").copied();
+        let guilds_tech = tech_map.get("guilds").copied();
+        let chemistry_tech = tech_map.get("chemistry").copied();
+        let economics_tech = tech_map.get("economics").copied();
+        let scientific_theory_tech = tech_map.get("scientific_theory").copied();
+        let fertilizer_tech = tech_map.get("fertilizer").copied();
+        let biology_tech = tech_map.get("biology").copied();
+        let electricity_tech = tech_map.get("electricity").copied();
+        let plastics_tech = tech_map.get("plastics").copied();
+        let radar_tech = tech_map.get("radar").copied();
+        let ecology_tech = tech_map.get("ecology").copied();
+        let computers_tech = tech_map.get("computers").copied();
+        let nanotech_tech = tech_map.get("nanotechnology").copied();
 
         let mut unit_map = HashMap::with_capacity(raw.units.len());
         for (i, u) in raw.units.iter().enumerate() {
@@ -437,10 +483,14 @@ impl Ruleset {
 
         let mut buildings = Vec::with_capacity(raw.buildings.len());
         let mut space_center_building = None;
+        let mut pyramids_building = None;
         for (i, b) in raw.buildings.iter().enumerate() {
             let id = i as BuildingId;
             if b.wins_science {
                 space_center_building = Some(id);
+            }
+            if b.id == "wonder_pyramids" {
+                pyramids_building = Some(id);
             }
             let tech = b
                 .tech
@@ -472,30 +522,37 @@ impl Ruleset {
             });
         }
 
-        let policies = raw
+        let mut citizenship_policy = None;
+        let policies: Vec<PolicyDef> = raw
             .policies
             .into_iter()
             .enumerate()
-            .map(|(i, p)| PolicyDef {
-                id: i as PolicyId,
-                key: p.id,
-                name: p.name,
-                tree: p.tree,
-                tier: p.tier,
-                desc: p.desc,
-                prod_pct: p.prod_pct,
-                sci_pct: p.sci_pct,
-                gold_pct: p.gold_pct,
-                combat_pct: p.combat_pct,
-                city_food: p.city_food,
-                city_prod: p.city_prod,
-                city_gold: p.city_gold,
-                city_science: p.city_science,
-                city_culture: p.city_culture,
-                city_defense: p.city_defense,
-                supply_bonus: p.supply_bonus,
-                unit_xp: p.unit_xp,
-                rush_discount_pct: p.rush_discount_pct,
+            .map(|(i, p)| {
+                let id = i as PolicyId;
+                if p.id == "lib_citizenship" {
+                    citizenship_policy = Some(id);
+                }
+                PolicyDef {
+                    id,
+                    key: p.id,
+                    name: p.name,
+                    tree: p.tree,
+                    tier: p.tier,
+                    desc: p.desc,
+                    prod_pct: p.prod_pct,
+                    sci_pct: p.sci_pct,
+                    gold_pct: p.gold_pct,
+                    combat_pct: p.combat_pct,
+                    city_food: p.city_food,
+                    city_prod: p.city_prod,
+                    city_gold: p.city_gold,
+                    city_science: p.city_science,
+                    city_culture: p.city_culture,
+                    city_defense: p.city_defense,
+                    supply_bonus: p.supply_bonus,
+                    unit_xp: p.unit_xp,
+                    rush_discount_pct: p.rush_discount_pct,
+                }
             })
             .collect();
 
@@ -537,17 +594,44 @@ impl Ruleset {
             railroad_tech,
             flight_tech,
             science_victory_tech,
+            mining_tech,
+            animal_husbandry_tech,
+            masonry_tech,
+            calendar_tech,
+            trapping_tech,
+            bronze_working_tech,
+            construction_tech,
+            engineering_tech,
+            guilds_tech,
+            chemistry_tech,
+            economics_tech,
+            scientific_theory_tech,
+            fertilizer_tech,
+            biology_tech,
+            electricity_tech,
+            plastics_tech,
+            radar_tech,
+            ecology_tech,
+            computers_tech,
+            nanotech_tech,
             settler_kind,
             worker_kind,
             warrior_kind,
             scout_kind,
             space_center_building,
+            pyramids_building,
+            citizenship_policy,
         })
     }
 
     #[inline]
     pub fn has_tech(tech_bits: TechBits, tech: TechId) -> bool {
-        (tech_bits & (1u64 << tech)) != 0
+        (tech_bits & (1u128 << tech)) != 0
+    }
+
+    #[inline]
+    pub fn has_opt_tech(tech_bits: TechBits, tech: Option<TechId>) -> bool {
+        tech.map_or(true, |t| Self::has_tech(tech_bits, t))
     }
 
     #[inline]
@@ -617,7 +701,25 @@ impl Ruleset {
             2 => "Medieval",
             3 => "Renaissance",
             4 => "Industrial",
-            _ => "Modern",
+            5 => "Modern",
+            6 => "Atomic",
+            7 => "Information",
+            _ => "Future",
+        }
+    }
+
+    #[inline]
+    pub const fn era_short_name(era: u8) -> &'static str {
+        match era {
+            0 => "Ancient",
+            1 => "Classic",
+            2 => "Mediev",
+            3 => "Renais",
+            4 => "Indust",
+            5 => "Modern",
+            6 => "Atomic",
+            7 => "Info",
+            _ => "Future",
         }
     }
 

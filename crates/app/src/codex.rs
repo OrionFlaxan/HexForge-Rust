@@ -66,46 +66,71 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
 
     // Build structured lines for the active tab (each entry: (header?, accent_color, text))
     let lines: Vec<(bool, Color, String)> = match state.tab {
-        CodexTab::HowToPlay => vec![
-            (true, ACCENT_GOLD, "1. VICTORY CONDITIONS (4 Paths to Win)".into()),
-            (false, WHITE, "- Domination: Be the last surviving empire on the map.".into()),
-            (false, WHITE, "- Science: Research Orbital Colonization & build Orbital Launch Complex.".into()),
-            (false, WHITE, "- Culture: Adopt 12 Social Policies (3 full Policy Trees) via Culture.".into()),
-            (false, WHITE, "- Score: Hold the highest Empire Score at the Turn Limit.".into()),
-            (true, ACCENT_GOLD, "2. CONTROLS & TURN FLOW".into()),
-            (false, WHITE, "- Drag with 1 finger to pan; pinch with 2 fingers to zoom.".into()),
-            (false, WHITE, "- Tap a unit to highlight Cyan move hexes & Red attack targets.".into()),
-            (false, WHITE, "- Tap a friendly City twice (or tap MANAGE CITY) to produce or rush-buy.".into()),
-            (false, WHITE, "- Tap END TURN (green * means Background AI is already precomputed!).".into()),
-            (true, ACCENT_GOLD, "3. CITIES, IMPROVEMENTS & ROADS".into()),
-            (false, WHITE, "- Settlers found new cities at least 3 hexes away from any existing city.".into()),
-            (false, WHITE, "- Workers build Farms, Mines, Pastures, Lumber Mills & Oil Wells.".into()),
-            (false, WHITE, "- Unlock The Wheel to lay Roads (2x speed) & Steam Power for Railroads.".into()),
-            (false, WHITE, "- Unique World Wonders (10 total) can only be built by ONE civ globally!".into()),
-        ],
+        CodexTab::HowToPlay => {
+            let mut v = vec![
+                (true, ACCENT_GOLD, "1. VICTORY CONDITIONS (4 Paths to Win)".into()),
+                (false, WHITE, "- Domination: Be the last surviving empire on the map.".into()),
+                (false, WHITE, "- Science: Research Orbital Colonization & build Orbital Launch Complex.".into()),
+                (false, WHITE, "- Culture: Adopt 12 Social Policies (3 full Policy Trees) via Culture.".into()),
+                (false, WHITE, "- Score: Hold the highest Empire Score at the Turn Limit.".into()),
+                (true, ACCENT_GOLD, "2. CONTROLS & CITY TABS".into()),
+                (false, WHITE, "- Drag with 1 finger to pan; pinch with 2 fingers to zoom.".into()),
+                (false, WHITE, "- Tap a unit to highlight Cyan move hexes & Red attack targets.".into()),
+                (false, WHITE, "- Tap a friendly City twice (or tap MANAGE CITY) for separate".into()),
+                (false, ACCENT_CYAN, "    UNITS | BUILDINGS | WONDERS | BUILT production tabs!".into()),
+                (false, WHITE, "- Tap END TURN (green * means Background AI is already precomputed!).".into()),
+                (true, ACCENT_GOLD, "3. REALISTIC WORKERS, ENGINEERING & PILLAGING".into()),
+                (false, WHITE, "- Select a Worker -> tap IMPROVE... to choose any realistic tile build,".into()),
+                (false, WHITE, "    or toggle AUTO WORK so late-game workers manage tiles automatically!".into()),
+                (false, WHITE, "- Multi-turn builds (1-4t) are sped up by Great Pyramids & Citizenship.".into()),
+                (false, WHITE, "- Chop Forest (+20 Prod to nearest city!), Clear Jungle, Drain Marsh.".into()),
+                (false, WHITE, "- Roads (The Wheel) give 2x speed; Railroads add +15% City Production!".into()),
+                (false, WHITE, "- Combat units can PILLAGE enemy tiles (+20G & +20 HP); Workers Repair!".into()),
+                (true, ACCENT_CYAN, "4. ALL 16 REALISTIC TILE IMPROVEMENTS".into()),
+            ];
+            for &imp in &hexforge_sim::types::Improvement::ALL {
+                let req = hexforge_sim::improvements::improvement_required_tech(rules, imp)
+                    .map(|t| rules.techs[t as usize].name.as_str())
+                    .unwrap_or("Agriculture");
+                v.push((
+                    false,
+                    WHITE,
+                    format!(
+                        "- {} ({}): {}",
+                        imp.name(),
+                        req,
+                        hexforge_sim::improvements::improvement_note(imp)
+                    ),
+                ));
+            }
+            v
+        }
         CodexTab::CombatCorps => vec![
-            (true, ACCENT_GOLD, "1. COMBAT STRENGTH & TERRAIN BONUSES".into()),
+            (true, ACCENT_GOLD, "1. COMBAT STRENGTH, FORTS & TERRAIN".into()),
             (false, WHITE, "- Damage scales exponentially with Strength difference (Civ V formula).".into()),
             (false, WHITE, "- Hills: +25% Defense | Forest/Jungle: +25% Defense | Marsh: -15%.".into()),
+            (false, ACCENT_CYAN, "- Fort & Forward Airbase: +50% Defense (can be built on borders!).".into()),
             (false, WHITE, "- Fortify: +20% Defense and heals +18 HP/turn in friendly borders.".into()),
             (false, WHITE, "- Flanking: +8% Attack per additional friendly melee/cavalry adjacent.".into()),
+            (false, WHITE, "- Pillaging: Spend 1 Move on an enemy improvement -> +20G & +20 HP!".into()),
             (false, WHITE, "- Promotions: +5% Combat Strength per 30 XP earned (up to +25%).".into()),
             (true, ACCENT_CYAN, "2. CORPS & ARMIES (ANTI-LAG ELITE STACKING)".into()),
-            (false, WHITE, "- Unlock Military Tactics (Medieval) -> Merge 2 identical units into CORPS:".into()),
+            (false, WHITE, "- Unlock Steel (Medieval) -> Merge 2 identical units into CORPS:".into()),
             (false, ACCENT_GOLD, "    ** CORPS: +10 Combat Strength, 1.25x Durability, uses ONLY 1 Supply!".into()),
-            (false, WHITE, "- Unlock Mobilization (Industrial) -> Merge Corps + 1 unit into ARMY:".into()),
+            (false, WHITE, "- Unlock Replaceable Parts (Modern) -> Merge Corps + 1 unit into ARMY:".into()),
             (false, ACCENT_GOLD, "    *** ARMY: +17 Combat Strength, 1.50x Durability, uses ONLY 1 Supply!".into()),
             (false, WHITE, "- Move two identical units adjacent & tap the gold MERGE button!".into()),
-            (true, ACCENT_GREEN, "3. SUPPLY CAP & AIR POWER".into()),
+            (true, ACCENT_GREEN, "3. SUPPLY CAP, AIR POWER & FORWARD AIRBASES".into()),
             (false, WHITE, "- Supply Cap = 5 + 2*Cities + TotalPop/2 + Barracks/Armory/Academy/Traits.".into()),
             (false, WHITE, "- Exceeding Supply Cap reduces city Production (-10% each) & adds Gold upkeep.".into()),
-            (false, WHITE, "- Air Units (Flight): Strike 5-7 hexes ignoring mountains/hills; rebase to cities.".into()),
+            (false, WHITE, "- Air & Orbital Units: Strike 5-10 hexes ignoring terrain; rebase to".into()),
+            (false, ACCENT_CYAN, "    friendly Cities OR Forward Airbases (unlocked at Radar)!".into()),
         ],
         CodexTab::Units => {
             let mut v = vec![(
                 true,
                 ACCENT_GOLD,
-                format!("ALL {} UNITS (9 ROLES — LIVE FROM RULESET)", rules.units.len()),
+                format!("ALL {} UNITS ACROSS 9 ERAS (LIVE FROM RULESET)", rules.units.len()),
             )];
             for u in &rules.units {
                 let tech_name = u
@@ -134,10 +159,11 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
             v
         }
         CodexTab::TechsWonders => {
+            let wonders_n = rules.buildings.iter().filter(|b| b.is_wonder).count();
             let mut v = vec![(
                 true,
                 ACCENT_GOLD,
-                format!("10 UNIQUE WORLD WONDERS ({} TOTAL BUILDINGS)", rules.buildings.len()),
+                format!("{wonders_n} UNIQUE WORLD WONDERS ({} TOTAL STRUCTURES)", rules.buildings.len()),
             )];
             for b in &rules.buildings {
                 if !b.is_wonder {
@@ -148,6 +174,8 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
                     " + FREE TECH!"
                 } else if b.rush_buy_discount_pct > 0 {
                     " -20% Rush Buy"
+                } else if b.key == "wonder_pyramids" {
+                    " -1t Worker Speed!"
                 } else {
                     ""
                 };
@@ -163,9 +191,9 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
             v.push((
                 true,
                 ACCENT_CYAN,
-                format!("6 ERAS & {} TECHNOLOGIES (KEY MILESTONES)", rules.techs.len()),
+                format!("9 FULL ERAS & {} TECHNOLOGIES", rules.techs.len()),
             ));
-            for era in 0..6u8 {
+            for era in 0..hexforge_sim::ruleset::NUM_ERAS {
                 let names: Vec<String> = rules
                     .techs
                     .iter()
@@ -215,7 +243,7 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
             v.push((
                 true,
                 ACCENT_GOLD,
-                format!("22 CIVILIZATIONS & UNIQUE TRAITS"),
+                "22 CIVILIZATIONS & UNIQUE TRAITS".into(),
             ));
             for c in &rules.civs {
                 v.push((

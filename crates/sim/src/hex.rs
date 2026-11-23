@@ -1,5 +1,6 @@
 use crate::types::{
-    CivId, Elevation, Feature, Improvement, Resource, Road, Terrain, TileId, INVALID_TILE, NO_CIV,
+    CivId, Elevation, Feature, Improvement, Resource, Road, Terrain, TileId, WorkerOrder,
+    INVALID_TILE, NO_CIV,
 };
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +19,9 @@ pub struct HexMapSoA {
     pub feature: Vec<Feature>,
     pub resource: Vec<Resource>,
     pub improvement: Vec<Improvement>,
+    pub pillaged: Vec<bool>,
+    pub work_order: Vec<Option<WorkerOrder>>,
+    pub work_turns_left: Vec<u8>,
     pub road: Vec<Road>,
     /// Bit `d` set if river runs along edge `d` (0..6) of this tile.
     pub river_mask: Vec<u8>,
@@ -71,6 +75,9 @@ impl HexMapSoA {
             feature: vec![Feature::None; num_tiles],
             resource: vec![Resource::None; num_tiles],
             improvement: vec![Improvement::None; num_tiles],
+            pillaged: vec![false; num_tiles],
+            work_order: vec![None; num_tiles],
+            work_turns_left: vec![0; num_tiles],
             road: vec![Road::None; num_tiles],
             river_mask: vec![0; num_tiles],
             owner: vec![NO_CIV; num_tiles],
@@ -242,6 +249,9 @@ impl HexMapSoA {
             Feature::Marsh => bonus -= 15,
             Feature::None => {}
         }
+        if self.improvement[i].is_fortification() && !self.pillaged[i] {
+            bonus += 50;
+        }
         bonus
     }
 
@@ -249,6 +259,16 @@ impl HexMapSoA {
     pub fn is_adjacent_to_water(&self, tile: TileId) -> bool {
         for &nb in self.neighbors_of(tile) {
             if nb != INVALID_TILE && self.terrain[nb as usize].is_water() {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[inline]
+    pub fn is_adjacent_to_mountain(&self, tile: TileId) -> bool {
+        for &nb in self.neighbors_of(tile) {
+            if nb != INVALID_TILE && self.elevation[nb as usize] == Elevation::Mountain {
                 return true;
             }
         }

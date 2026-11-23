@@ -1,10 +1,10 @@
-# HexForge-Rust v0.3.0 — 6-Era Data-Driven Ruleset
-# Compiled at engine startup into dense integer arrays and u64/u32 bitmasks (zero string hashing during play).
-# Eras: 0 = Ancient, 1 = Classical, 2 = Medieval, 3 = Renaissance, 4 = Industrial, 5 = Modern & Future
+# HexForge-Rust v0.4.0 — Unciv-Inspired 9-Era Data-Driven Ruleset
+# Compiled at engine startup into dense integer arrays and u128/u64/u32 bitmasks (zero string hashing during play).
+# Eras: 0=Ancient, 1=Classical, 2=Medieval, 3=Renaissance, 4=Industrial, 5=Modern, 6=Atomic, 7=Information, 8=Future
 
-# ==================== TECHNOLOGIES (50 Total) ====================
+# ==================== TECHNOLOGIES (76 Total across 9 Full Eras) ====================
 
-# --- ERA 0: ANCIENT (8) ---
+# --- ERA 0: ANCIENT (9) ---
 [[techs]]
 id = "agriculture"
 name = "Agriculture"
@@ -13,31 +13,31 @@ cost = 15
 prereqs = []
 
 [[techs]]
-id = "mining"
-name = "Mining"
+id = "pottery"
+name = "Pottery"
 era = 0
-cost = 30
-prereqs = ["agriculture"]
-
-[[techs]]
-id = "archery"
-name = "Archery"
-era = 0
-cost = 30
+cost = 28
 prereqs = ["agriculture"]
 
 [[techs]]
 id = "animal_husbandry"
 name = "Animal Husbandry"
 era = 0
-cost = 30
+cost = 28
 prereqs = ["agriculture"]
 
 [[techs]]
-id = "pottery"
-name = "Pottery"
+id = "archery"
+name = "Archery"
 era = 0
-cost = 30
+cost = 28
+prereqs = ["agriculture"]
+
+[[techs]]
+id = "mining"
+name = "Mining"
+era = 0
+cost = 28
 prereqs = ["agriculture"]
 
 [[techs]]
@@ -48,41 +48,48 @@ cost = 40
 prereqs = ["pottery"]
 
 [[techs]]
+id = "calendar"
+name = "Calendar"
+era = 0
+cost = 40
+prereqs = ["pottery"]
+
+[[techs]]
+id = "trapping"
+name = "Trapping"
+era = 0
+cost = 40
+prereqs = ["animal_husbandry"]
+
+[[techs]]
 id = "masonry"
 name = "Masonry"
 era = 0
 cost = 40
 prereqs = ["mining"]
 
+# --- ERA 1: CLASSICAL (9) ---
 [[techs]]
 id = "wheel"
 name = "The Wheel"
-era = 0
-cost = 45
+era = 1
+cost = 52
 prereqs = ["animal_husbandry", "archery"]
 unlocks_roads = true
-
-# --- ERA 1: CLASSICAL (8) ---
-[[techs]]
-id = "bronze_working"
-name = "Bronze Working"
-era = 1
-cost = 60
-prereqs = ["mining"]
 
 [[techs]]
 id = "writing"
 name = "Writing"
 era = 1
-cost = 60
+cost = 55
 prereqs = ["pottery"]
 
 [[techs]]
-id = "calendar"
-name = "Calendar"
+id = "bronze_working"
+name = "Bronze Working"
 era = 1
-cost = 65
-prereqs = ["pottery"]
+cost = 55
+prereqs = ["mining"]
 
 [[techs]]
 id = "optics"
@@ -93,184 +100,212 @@ prereqs = ["sailing"]
 unlocks_embark = true
 
 [[techs]]
-id = "iron_working"
-name = "Iron Working"
+id = "philosophy"
+name = "Philosophy"
 era = 1
-cost = 90
-prereqs = ["bronze_working"]
-
-[[techs]]
-id = "mathematics"
-name = "Mathematics"
-era = 1
-cost = 90
-prereqs = ["wheel", "writing"]
-
-[[techs]]
-id = "currency"
-name = "Currency"
-era = 1
-cost = 95
+cost = 78
 prereqs = ["writing", "calendar"]
 
 [[techs]]
 id = "horseback_riding"
 name = "Horseback Riding"
 era = 1
-cost = 95
+cost = 82
+prereqs = ["trapping", "wheel"]
+
+[[techs]]
+id = "mathematics"
+name = "Mathematics"
+era = 1
+cost = 85
 prereqs = ["wheel"]
 
-# --- ERA 2: MEDIEVAL (9) ---
 [[techs]]
 id = "construction"
 name = "Construction"
+era = 1
+cost = 92
+prereqs = ["masonry", "wheel"]
+
+[[techs]]
+id = "iron_working"
+name = "Iron Working"
+era = 1
+cost = 95
+prereqs = ["bronze_working"]
+
+# --- ERA 2: MEDIEVAL (9) ---
+[[techs]]
+id = "currency"
+name = "Currency"
 era = 2
-cost = 135
-prereqs = ["masonry", "mathematics"]
+cost = 125
+prereqs = ["mathematics", "writing"]
 
 [[techs]]
 id = "engineering"
 name = "Engineering"
 era = 2
-cost = 145
+cost = 135
 prereqs = ["mathematics", "construction"]
-
-[[techs]]
-id = "metal_casting"
-name = "Metal Casting"
-era = 2
-cost = 150
-prereqs = ["iron_working", "engineering"]
 
 [[techs]]
 id = "theology"
 name = "Theology"
 era = 2
-cost = 145
-prereqs = ["calendar", "writing"]
+cost = 135
+prereqs = ["philosophy", "calendar"]
 
 [[techs]]
 id = "civil_service"
 name = "Civil Service"
 era = 2
-cost = 155
-prereqs = ["currency", "theology"]
+cost = 148
+prereqs = ["currency", "trapping"]
 
 [[techs]]
 id = "guilds"
 name = "Guilds"
 era = 2
-cost = 160
+cost = 148
 prereqs = ["currency"]
+
+[[techs]]
+id = "metal_casting"
+name = "Metal Casting"
+era = 2
+cost = 155
+prereqs = ["engineering", "iron_working"]
 
 [[techs]]
 id = "chivalry"
 name = "Chivalry"
 era = 2
-cost = 175
+cost = 170
 prereqs = ["horseback_riding", "civil_service"]
 
 [[techs]]
 id = "machinery"
 name = "Machinery"
 era = 2
-cost = 185
+cost = 175
 prereqs = ["engineering", "guilds"]
 
 [[techs]]
-id = "military_tactics"
-name = "Military Tactics"
+id = "steel"
+name = "Steel"
 era = 2
-cost = 195
-prereqs = ["iron_working", "civil_service"]
+cost = 185
+prereqs = ["metal_casting", "iron_working"]
 unlocks_corps = true
 
-# --- ERA 3: RENAISSANCE (8) ---
-[[techs]]
-id = "education"
-name = "Education"
-era = 3
-cost = 230
-prereqs = ["theology", "civil_service"]
-
+# --- ERA 3: RENAISSANCE (9) ---
 [[techs]]
 id = "compass"
 name = "Compass"
 era = 3
+cost = 210
+prereqs = ["optics", "theology"]
+
+[[techs]]
+id = "education"
+name = "Education"
+era = 3
 cost = 220
-prereqs = ["optics", "guilds"]
+prereqs = ["theology", "civil_service"]
+
+[[techs]]
+id = "physics"
+name = "Physics"
+era = 3
+cost = 225
+prereqs = ["metal_casting", "machinery"]
 
 [[techs]]
 id = "astronomy"
 name = "Astronomy"
 era = 3
-cost = 260
-prereqs = ["education", "compass"]
+cost = 255
+prereqs = ["compass", "education"]
 unlocks_ocean_embark = true
 
 [[techs]]
 id = "banking"
 name = "Banking"
 era = 3
-cost = 265
-prereqs = ["guilds", "education"]
+cost = 260
+prereqs = ["education", "chivalry"]
 
 [[techs]]
 id = "printing_press"
 name = "Printing Press"
 era = 3
-cost = 280
-prereqs = ["machinery", "education"]
+cost = 265
+prereqs = ["machinery", "physics"]
 
 [[techs]]
 id = "gunpowder"
 name = "Gunpowder"
 era = 3
-cost = 290
-prereqs = ["metal_casting", "military_tactics"]
-
-[[techs]]
-id = "chemistry"
-name = "Chemistry"
-era = 3
-cost = 320
-prereqs = ["gunpowder", "printing_press"]
+cost = 275
+prereqs = ["steel", "physics"]
 
 [[techs]]
 id = "navigation"
 name = "Navigation"
 era = 3
-cost = 320
-prereqs = ["astronomy", "gunpowder"]
+cost = 305
+prereqs = ["astronomy"]
+
+[[techs]]
+id = "chemistry"
+name = "Chemistry"
+era = 3
+cost = 310
+prereqs = ["gunpowder", "printing_press"]
 
 # --- ERA 4: INDUSTRIAL (9) ---
 [[techs]]
 id = "economics"
 name = "Economics"
 era = 4
-cost = 380
+cost = 360
 prereqs = ["banking", "printing_press"]
-
-[[techs]]
-id = "scientific_theory"
-name = "Scientific Theory"
-era = 4
-cost = 395
-prereqs = ["printing_press", "chemistry"]
 
 [[techs]]
 id = "metallurgy"
 name = "Metallurgy"
 era = 4
-cost = 390
-prereqs = ["chivalry", "gunpowder"]
+cost = 365
+prereqs = ["gunpowder", "chivalry"]
+
+[[techs]]
+id = "scientific_theory"
+name = "Scientific Theory"
+era = 4
+cost = 385
+prereqs = ["economics", "printing_press"]
 
 [[techs]]
 id = "industrialization"
 name = "Industrialization"
 era = 4
-cost = 440
+cost = 415
 prereqs = ["economics", "metallurgy"]
+
+[[techs]]
+id = "rifling"
+name = "Rifling"
+era = 4
+cost = 425
+prereqs = ["metallurgy", "chemistry"]
+
+[[techs]]
+id = "fertilizer"
+name = "Fertilizer"
+era = 4
+cost = 440
+prereqs = ["chemistry"]
 
 [[techs]]
 id = "steam_power"
@@ -278,100 +313,250 @@ name = "Steam Power"
 era = 4
 cost = 460
 prereqs = ["industrialization", "navigation"]
-unlocks_railroads = true
-
-[[techs]]
-id = "rifling"
-name = "Rifling"
-era = 4
-cost = 450
-prereqs = ["metallurgy", "chemistry"]
 
 [[techs]]
 id = "dynamite"
 name = "Dynamite"
 era = 4
-cost = 510
-prereqs = ["chemistry", "rifling"]
+cost = 480
+prereqs = ["rifling", "fertilizer"]
 
+[[techs]]
+id = "biology"
+name = "Biology"
+era = 4
+cost = 490
+prereqs = ["scientific_theory", "fertilizer"]
+
+# --- ERA 5: MODERN (9) ---
 [[techs]]
 id = "electricity"
 name = "Electricity"
-era = 4
-cost = 520
+era = 5
+cost = 530
 prereqs = ["scientific_theory", "steam_power"]
 
 [[techs]]
-id = "mobilization"
-name = "Mobilization"
-era = 4
-cost = 540
-prereqs = ["industrialization", "rifling"]
+id = "replaceable_parts"
+name = "Replaceable Parts"
+era = 5
+cost = 545
+prereqs = ["electricity", "rifling"]
 unlocks_army = true
 
-# --- ERA 5: MODERN & FUTURE (8) ---
+[[techs]]
+id = "railroad"
+name = "Railroad"
+era = 5
+cost = 555
+prereqs = ["steam_power", "dynamite"]
+unlocks_railroads = true
+
+[[techs]]
+id = "refrigeration"
+name = "Refrigeration"
+era = 5
+cost = 570
+prereqs = ["electricity", "biology"]
+
 [[techs]]
 id = "flight"
 name = "Flight"
 era = 5
-cost = 640
-prereqs = ["steam_power", "electricity"]
+cost = 585
+prereqs = ["steam_power", "biology"]
 unlocks_flight = true
 
 [[techs]]
 id = "radio"
 name = "Radio"
 era = 5
-cost = 650
+cost = 610
 prereqs = ["electricity"]
+
+[[techs]]
+id = "combustion"
+name = "Combustion"
+era = 5
+cost = 625
+prereqs = ["railroad", "flight"]
 
 [[techs]]
 id = "plastics"
 name = "Plastics"
 era = 5
-cost = 700
-prereqs = ["scientific_theory", "radio"]
+cost = 650
+prereqs = ["replaceable_parts", "radio"]
+
+[[techs]]
+id = "ballistics"
+name = "Ballistics"
+era = 5
+cost = 660
+prereqs = ["railroad", "flight"]
+
+# --- ERA 6: ATOMIC (8) ---
+[[techs]]
+id = "penicillin"
+name = "Penicillin"
+era = 6
+cost = 710
+prereqs = ["plastics", "refrigeration"]
+
+[[techs]]
+id = "atomic_theory"
+name = "Atomic Theory"
+era = 6
+cost = 725
+prereqs = ["plastics", "radio"]
+
+[[techs]]
+id = "radar"
+name = "Radar"
+era = 6
+cost = 740
+prereqs = ["ballistics", "radio"]
 
 [[techs]]
 id = "combined_arms"
 name = "Combined Arms"
-era = 5
-cost = 740
-prereqs = ["mobilization", "flight"]
+era = 6
+cost = 755
+prereqs = ["combustion", "ballistics"]
+
+[[techs]]
+id = "ecology"
+name = "Ecology"
+era = 6
+cost = 790
+prereqs = ["penicillin", "atomic_theory"]
 
 [[techs]]
 id = "nuclear_fission"
 name = "Nuclear Fission"
-era = 5
-cost = 840
-prereqs = ["plastics", "combined_arms"]
+era = 6
+cost = 820
+prereqs = ["atomic_theory", "radar"]
 
 [[techs]]
 id = "rocketry"
 name = "Rocketry"
-era = 5
-cost = 900
-prereqs = ["flight", "plastics", "dynamite"]
+era = 6
+cost = 845
+prereqs = ["radar", "combined_arms"]
+
+[[techs]]
+id = "computers"
+name = "Computers"
+era = 6
+cost = 870
+prereqs = ["radar", "combined_arms"]
+
+# --- ERA 7: INFORMATION (8) ---
+[[techs]]
+id = "telecommunications"
+name = "Telecommunications"
+era = 7
+cost = 920
+prereqs = ["ecology", "computers"]
+
+[[techs]]
+id = "mobile_tactics"
+name = "Mobile Tactics"
+era = 7
+cost = 935
+prereqs = ["ecology", "nuclear_fission"]
+
+[[techs]]
+id = "advanced_ballistics"
+name = "Advanced Ballistics"
+era = 7
+cost = 960
+prereqs = ["nuclear_fission", "rocketry"]
+
+[[techs]]
+id = "satellites"
+name = "Satellites"
+era = 7
+cost = 980
+prereqs = ["rocketry", "computers"]
 
 [[techs]]
 id = "robotics"
 name = "Robotics"
-era = 5
+era = 7
+cost = 1010
+prereqs = ["computers", "mobile_tactics"]
+
+[[techs]]
+id = "lasers"
+name = "Lasers"
+era = 7
 cost = 1040
-prereqs = ["nuclear_fission", "rocketry"]
+prereqs = ["advanced_ballistics", "satellites"]
+
+[[techs]]
+id = "stealth"
+name = "Stealth"
+era = 7
+cost = 1080
+prereqs = ["robotics", "lasers"]
+
+[[techs]]
+id = "nanotechnology"
+name = "Nanotechnology"
+era = 7
+cost = 1120
+prereqs = ["robotics", "telecommunications"]
+
+# --- ERA 8: FUTURE (6) ---
+[[techs]]
+id = "particle_physics"
+name = "Particle Physics"
+era = 8
+cost = 1180
+prereqs = ["lasers", "nanotechnology"]
+
+[[techs]]
+id = "nuclear_fusion"
+name = "Nuclear Fusion"
+era = 8
+cost = 1210
+prereqs = ["particle_physics", "stealth"]
+
+[[techs]]
+id = "cybernetics"
+name = "Cybernetics"
+era = 8
+cost = 1240
+prereqs = ["nanotechnology", "stealth"]
+
+[[techs]]
+id = "quantum_computing"
+name = "Quantum Computing"
+era = 8
+cost = 1280
+prereqs = ["particle_physics", "cybernetics"]
 
 [[techs]]
 id = "orbital_colonization"
 name = "Orbital Colonization"
-era = 5
-cost = 1220
-prereqs = ["robotics"]
+era = 8
+cost = 1340
+prereqs = ["nuclear_fusion", "quantum_computing"]
 unlocks_science_victory = true
 
+[[techs]]
+id = "future_tech"
+name = "Future Tech"
+era = 8
+cost = 1500
+prereqs = ["orbital_colonization"]
 
-# ==================== UNITS (32 Total across 9 Roles) ====================
 
-# --- Civilians & Recon (3) ---
+# ==================== UNITS (58 Total across 9 Roles & 9 Eras) ====================
+
+# --- Civilians & Recon (6) ---
 [[units]]
 id = "settler"
 name = "Settler"
@@ -407,8 +592,51 @@ range = 0
 moves = 3
 sight = 3
 upkeep = 1
+upgrades_to = "explorer"
 
-# --- Melee Line (8) ---
+[[units]]
+id = "explorer"
+name = "Explorer"
+role = "recon"
+cost = 95
+strength = 16
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 4
+upkeep = 2
+tech = "compass"
+upgrades_to = "paratrooper"
+
+[[units]]
+id = "paratrooper"
+name = "Paratrooper"
+role = "recon"
+cost = 320
+strength = 58
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 4
+upkeep = 5
+tech = "radar"
+upgrades_to = "xcom_squad"
+
+[[units]]
+id = "xcom_squad"
+name = "Exo-Suit Squad"
+role = "recon"
+cost = 440
+strength = 88
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 4
+upkeep = 7
+tech = "cybernetics"
+city_attack_bonus = 20
+
+# --- Melee & Marine Line (12) ---
 [[units]]
 id = "warrior"
 name = "Warrior"
@@ -441,35 +669,49 @@ id = "swordsman"
 name = "Swordsman"
 role = "melee"
 cost = 72
-strength = 16
+strength = 15
 ranged_strength = 0
 range = 0
 moves = 2
 sight = 2
 upkeep = 2
 tech = "iron_working"
-upgrades_to = "musketman"
+upgrades_to = "longswordsman"
 
 [[units]]
 id = "pikeman"
 name = "Pikeman"
 role = "melee"
 cost = 90
-strength = 19
+strength = 18
 ranged_strength = 0
 range = 0
 moves = 2
 sight = 2
 upkeep = 2
 tech = "civil_service"
-upgrades_to = "rifleman"
+upgrades_to = "lancer"
+
+[[units]]
+id = "longswordsman"
+name = "Longswordsman"
+role = "melee"
+cost = 110
+strength = 21
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "steel"
+upgrades_to = "musketman"
 
 [[units]]
 id = "musketman"
 name = "Musketman"
 role = "melee"
-cost = 135
-strength = 26
+cost = 138
+strength = 25
 ranged_strength = 0
 range = 0
 moves = 2
@@ -483,58 +725,86 @@ id = "rifleman"
 name = "Rifleman"
 role = "melee"
 cost = 195
-strength = 36
+strength = 35
 ranged_strength = 0
 range = 0
 moves = 2
 sight = 2
 upkeep = 4
 tech = "rifling"
+upgrades_to = "great_war_infantry"
+
+[[units]]
+id = "great_war_infantry"
+name = "Great War Infantry"
+role = "melee"
+cost = 255
+strength = 48
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 5
+tech = "replaceable_parts"
 upgrades_to = "infantry"
 
 [[units]]
 id = "infantry"
 name = "Infantry"
 role = "melee"
-cost = 275
-strength = 54
+cost = 310
+strength = 62
 ranged_strength = 0
 range = 0
 moves = 2
 sight = 2
 upkeep = 5
-tech = "mobilization"
+tech = "plastics"
 upgrades_to = "mech_infantry"
+
+[[units]]
+id = "marine"
+name = "Marine"
+role = "melee"
+cost = 325
+strength = 64
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 3
+upkeep = 6
+tech = "penicillin"
+city_attack_bonus = 25
 
 [[units]]
 id = "mech_infantry"
 name = "Mechanized Infantry"
 role = "melee"
-cost = 350
-strength = 70
+cost = 375
+strength = 78
 ranged_strength = 0
 range = 0
 moves = 3
 sight = 2
 upkeep = 6
-tech = "plastics"
-upgrades_to = "giant_mech"
+tech = "mobile_tactics"
+upgrades_to = "giant_death_robot"
 
 [[units]]
-id = "giant_mech"
-name = "Giant Mech"
+id = "giant_death_robot"
+name = "Giant Death Robot"
 role = "melee"
-cost = 520
-strength = 96
+cost = 560
+strength = 115
 ranged_strength = 0
 range = 0
-moves = 3
+moves = 4
 sight = 3
-upkeep = 9
-tech = "robotics"
-city_attack_bonus = 40
+upkeep = 10
+tech = "nuclear_fusion"
+city_attack_bonus = 45
 
-# --- Ranged Line (4) ---
+# --- Ranged, Anti-Tank & Anti-Air Line (10) ---
 [[units]]
 id = "archer"
 name = "Archer"
@@ -548,6 +818,20 @@ sight = 2
 upkeep = 1
 tech = "archery"
 upgrades_to = "composite_bow"
+
+[[units]]
+id = "chariot_archer"
+name = "Chariot Archer"
+role = "ranged"
+cost = 58
+strength = 6
+ranged_strength = 10
+range = 2
+moves = 4
+sight = 2
+upkeep = 1
+tech = "wheel"
+upgrades_to = "knight"
 
 [[units]]
 id = "composite_bow"
@@ -575,28 +859,97 @@ moves = 2
 sight = 2
 upkeep = 2
 tech = "machinery"
+upgrades_to = "gatling_gun"
+
+[[units]]
+id = "gatling_gun"
+name = "Gatling Gun"
+role = "ranged"
+cost = 205
+strength = 30
+ranged_strength = 36
+range = 2
+moves = 2
+sight = 2
+upkeep = 4
+tech = "industrialization"
 upgrades_to = "machine_gun"
 
 [[units]]
 id = "machine_gun"
 name = "Machine Gun"
 role = "ranged"
-cost = 240
-strength = 36
-ranged_strength = 44
+cost = 275
+strength = 44
+ranged_strength = 52
 range = 2
 moves = 2
 sight = 2
-upkeep = 4
-tech = "industrialization"
+upkeep = 5
+tech = "ballistics"
+upgrades_to = "bazooka"
 
-# --- Cavalry & Armor Line (6) ---
+[[units]]
+id = "anti_aircraft_gun"
+name = "Anti-Aircraft Gun"
+role = "ranged"
+cost = 290
+strength = 48
+ranged_strength = 52
+range = 2
+moves = 2
+sight = 3
+upkeep = 5
+tech = "ballistics"
+upgrades_to = "mobile_sam"
+
+[[units]]
+id = "anti_tank_gun"
+name = "Anti-Tank Gun"
+role = "ranged"
+cost = 285
+strength = 46
+ranged_strength = 54
+range = 2
+moves = 2
+sight = 2
+upkeep = 5
+tech = "combined_arms"
+upgrades_to = "helicopter_gunship"
+
+[[units]]
+id = "mobile_sam"
+name = "Mobile SAM"
+role = "ranged"
+cost = 370
+strength = 62
+ranged_strength = 70
+range = 3
+moves = 3
+sight = 3
+upkeep = 6
+tech = "rocketry"
+
+[[units]]
+id = "bazooka"
+name = "Plasma Infantry"
+role = "ranged"
+cost = 410
+strength = 72
+ranged_strength = 86
+range = 2
+moves = 3
+sight = 2
+upkeep = 7
+tech = "nanotechnology"
+
+# --- Cavalry, Armor & Gunship Line (9) ---
 [[units]]
 id = "horseman"
 name = "Horseman"
 role = "cavalry"
 cost = 72
-strength = 15
+strength = 14
 ranged_strength = 0
 range = 0
 moves = 4
@@ -610,49 +963,63 @@ id = "knight"
 name = "Knight"
 role = "cavalry"
 cost = 120
-strength = 23
+strength = 22
 ranged_strength = 0
 range = 0
 moves = 4
 sight = 2
 upkeep = 3
 tech = "chivalry"
-upgrades_to = "lancer"
+upgrades_to = "cavalry"
 
 [[units]]
 id = "lancer"
 name = "Lancer"
 role = "cavalry"
 cost = 165
-strength = 30
+strength = 28
 ranged_strength = 0
 range = 0
 moves = 4
 sight = 2
 upkeep = 3
 tech = "metallurgy"
-upgrades_to = "cavalry"
+upgrades_to = "anti_tank_gun"
 
 [[units]]
 id = "cavalry"
 name = "Cavalry"
 role = "cavalry"
-cost = 220
-strength = 40
+cost = 215
+strength = 36
 ranged_strength = 0
 range = 0
 moves = 4
 sight = 2
 upkeep = 4
 tech = "rifling"
+upgrades_to = "landship"
+
+[[units]]
+id = "landship"
+name = "Landship"
+role = "cavalry"
+cost = 285
+strength = 54
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 2
+upkeep = 5
+tech = "combustion"
 upgrades_to = "tank"
 
 [[units]]
 id = "tank"
 name = "Heavy Tank"
 role = "cavalry"
-cost = 320
-strength = 62
+cost = 345
+strength = 68
 ranged_strength = 0
 range = 0
 moves = 5
@@ -662,17 +1029,44 @@ tech = "combined_arms"
 upgrades_to = "modern_armor"
 
 [[units]]
+id = "helicopter_gunship"
+name = "Helicopter Gunship"
+role = "cavalry"
+cost = 360
+strength = 64
+ranged_strength = 68
+range = 2
+moves = 6
+sight = 3
+upkeep = 6
+tech = "computers"
+
+[[units]]
 id = "modern_armor"
 name = "Modern Armor"
 role = "cavalry"
-cost = 420
-strength = 82
+cost = 430
+strength = 88
 ranged_strength = 0
 range = 0
 moves = 5
 sight = 3
 upkeep = 7
-tech = "robotics"
+tech = "lasers"
+upgrades_to = "hover_tank"
+
+[[units]]
+id = "hover_tank"
+name = "Hover Tank"
+role = "cavalry"
+cost = 510
+strength = 104
+ranged_strength = 0
+range = 0
+moves = 6
+sight = 3
+upkeep = 8
+tech = "quantum_computing"
 
 # --- Siege Line (5) ---
 [[units]]
@@ -701,7 +1095,7 @@ range = 2
 moves = 2
 sight = 2
 upkeep = 2
-tech = "machinery"
+tech = "physics"
 city_attack_bonus = 75
 upgrades_to = "cannon"
 
@@ -724,7 +1118,7 @@ upgrades_to = "artillery"
 id = "artillery"
 name = "Artillery"
 role = "siege"
-cost = 240
+cost = 245
 strength = 24
 ranged_strength = 42
 range = 3
@@ -732,7 +1126,7 @@ moves = 2
 sight = 2
 upkeep = 4
 tech = "dynamite"
-city_attack_bonus = 90
+city_attack_bonus = 95
 upgrades_to = "rocket_artillery"
 
 [[units]]
@@ -741,24 +1135,24 @@ name = "Rocket Artillery"
 role = "siege"
 cost = 390
 strength = 44
-ranged_strength = 74
+ranged_strength = 76
 range = 3
 moves = 3
 sight = 2
 upkeep = 7
 tech = "rocketry"
-city_attack_bonus = 110
+city_attack_bonus = 115
 
-# --- Naval Line (6) ---
+# --- Naval Line (9) ---
 [[units]]
-id = "galley"
-name = "Galley"
+id = "trireme"
+name = "Trireme"
 role = "naval"
-cost = 52
+cost = 50
 strength = 11
 ranged_strength = 0
 range = 0
-moves = 3
+moves = 4
 sight = 2
 upkeep = 1
 tech = "sailing"
@@ -772,11 +1166,11 @@ cost = 110
 strength = 20
 ranged_strength = 0
 range = 0
-moves = 4
+moves = 5
 sight = 4
 upkeep = 2
 tech = "astronomy"
-upgrades_to = "destroyer"
+upgrades_to = "ironclad"
 
 [[units]]
 id = "frigate"
@@ -784,7 +1178,7 @@ name = "Frigate"
 role = "naval"
 cost = 155
 strength = 24
-ranged_strength = 29
+ranged_strength = 30
 range = 2
 moves = 5
 sight = 3
@@ -793,103 +1187,190 @@ tech = "navigation"
 upgrades_to = "battleship"
 
 [[units]]
-id = "destroyer"
-name = "Destroyer"
+id = "ironclad"
+name = "Ironclad"
 role = "naval"
-cost = 250
-strength = 46
+cost = 215
+strength = 40
 ranged_strength = 0
 range = 0
-moves = 6
-sight = 4
-upkeep = 5
+moves = 4
+sight = 3
+upkeep = 4
 tech = "steam_power"
+city_attack_bonus = 30
+upgrades_to = "destroyer"
 
 [[units]]
 id = "submarine"
 name = "Submarine"
 role = "naval"
-cost = 290
+cost = 285
 strength = 34
-ranged_strength = 58
+ranged_strength = 56
 range = 2
 moves = 5
 sight = 3
 upkeep = 5
-tech = "electricity"
+tech = "refrigeration"
+upgrades_to = "nuclear_submarine"
+
+[[units]]
+id = "destroyer"
+name = "Destroyer"
+role = "naval"
+cost = 310
+strength = 52
+ranged_strength = 0
+range = 0
+moves = 6
+sight = 4
+upkeep = 5
+tech = "combustion"
+upgrades_to = "missile_cruiser"
 
 [[units]]
 id = "battleship"
 name = "Battleship"
 role = "naval"
-cost = 360
+cost = 365
 strength = 60
-ranged_strength = 68
+ranged_strength = 70
 range = 3
 moves = 5
 sight = 3
 upkeep = 6
-tech = "combined_arms"
+tech = "ballistics"
 
-# --- Air Force Line (4) ---
 [[units]]
-id = "biplane"
-name = "Fighter"
+id = "nuclear_submarine"
+name = "Nuclear Submarine"
+role = "naval"
+cost = 405
+strength = 52
+ranged_strength = 84
+range = 3
+moves = 6
+sight = 4
+upkeep = 7
+tech = "telecommunications"
+
+[[units]]
+id = "missile_cruiser"
+name = "Missile Cruiser"
+role = "naval"
+cost = 450
+strength = 76
+ranged_strength = 92
+range = 4
+moves = 6
+sight = 4
+upkeep = 8
+tech = "robotics"
+city_attack_bonus = 50
+
+# --- Air Force & Orbital Strike Line (7) ---
+[[units]]
+id = "triplane"
+name = "Great War Fighter"
 role = "air"
-cost = 260
-strength = 40
-ranged_strength = 44
+cost = 240
+strength = 36
+ranged_strength = 40
 range = 5
 moves = 1
 sight = 4
 upkeep = 5
 tech = "flight"
+upgrades_to = "fighter"
+
+[[units]]
+id = "fighter"
+name = "Fighter"
+role = "air"
+cost = 310
+strength = 50
+ranged_strength = 54
+range = 6
+moves = 1
+sight = 4
+upkeep = 6
+tech = "radar"
 upgrades_to = "jet_fighter"
 
 [[units]]
 id = "bomber"
-name = "Bomber"
+name = "Heavy Bomber"
 role = "air"
-cost = 300
-strength = 36
-ranged_strength = 54
-range = 6
+cost = 335
+strength = 44
+ranged_strength = 64
+range = 7
 moves = 1
 sight = 3
 upkeep = 6
-tech = "flight"
-city_attack_bonus = 50
+tech = "radar"
+city_attack_bonus = 60
 upgrades_to = "stealth_bomber"
+
+[[units]]
+id = "guided_missile"
+name = "Guided Missile"
+role = "air"
+cost = 210
+strength = 30
+ranged_strength = 72
+range = 8
+moves = 1
+sight = 2
+upkeep = 4
+tech = "advanced_ballistics"
+city_attack_bonus = 70
 
 [[units]]
 id = "jet_fighter"
 name = "Jet Fighter"
 role = "air"
-cost = 400
-strength = 68
-ranged_strength = 72
-range = 6
+cost = 420
+strength = 74
+ranged_strength = 80
+range = 7
 moves = 1
 sight = 5
 upkeep = 7
-tech = "rocketry"
+tech = "lasers"
+upgrades_to = "orbital_drone"
 
 [[units]]
 id = "stealth_bomber"
 name = "Stealth Bomber"
 role = "air"
-cost = 460
-strength = 64
-ranged_strength = 88
-range = 7
+cost = 475
+strength = 68
+ranged_strength = 94
+range = 8
 moves = 1
 sight = 4
 upkeep = 8
-tech = "robotics"
+tech = "stealth"
+city_attack_bonus = 90
+
+[[units]]
+id = "orbital_drone"
+name = "Orbital Strike Drone"
+role = "air"
+cost = 540
+strength = 88
+ranged_strength = 108
+range = 10
+moves = 1
+sight = 5
+upkeep = 9
+tech = "orbital_colonization"
 city_attack_bonus = 80
 
 
-# ==================== BUILDINGS (20) & WORLD WONDERS (10) ====================
+# ==================== BUILDINGS (26) & UNIQUE WORLD WONDERS (12) ====================
 
 [[buildings]]
 id = "monument"
@@ -999,7 +1480,7 @@ cost = 155
 upkeep = 2
 supply = 2
 unit_xp = 15
-tech = "military_tactics"
+tech = "steel"
 
 [[buildings]]
 id = "bank"
@@ -1009,6 +1490,15 @@ upkeep = 0
 gold = 5
 gold_pct = 25
 tech = "banking"
+
+[[buildings]]
+id = "windmill"
+name = "Windmill"
+cost = 210
+upkeep = 2
+production = 3
+production_pct = 10
+tech = "economics"
 
 [[buildings]]
 id = "public_school"
@@ -1029,6 +1519,14 @@ production_pct = 25
 tech = "industrialization"
 
 [[buildings]]
+id = "hospital"
+name = "Hospital"
+cost = 265
+upkeep = 2
+food = 5
+tech = "biology"
+
+[[buildings]]
 id = "military_academy"
 name = "Military Academy"
 cost = 280
@@ -1036,7 +1534,7 @@ upkeep = 3
 supply = 3
 unit_xp = 25
 defense = 8
-tech = "mobilization"
+tech = "replaceable_parts"
 
 [[buildings]]
 id = "broadcast_tower"
@@ -1065,6 +1563,36 @@ production_pct = 30
 tech = "nuclear_fission"
 
 [[buildings]]
+id = "solar_plant"
+name = "Solar Plant"
+cost = 415
+upkeep = 2
+production = 6
+production_pct = 20
+science = 2
+tech = "ecology"
+
+[[buildings]]
+id = "spaceport"
+name = "Spaceport"
+cost = 480
+upkeep = 3
+production = 5
+production_pct = 20
+science = 5
+tech = "satellites"
+
+[[buildings]]
+id = "fusion_reactor"
+name = "Fusion Reactor"
+cost = 560
+upkeep = 3
+production = 10
+production_pct = 35
+science = 6
+tech = "nuclear_fusion"
+
+[[buildings]]
 id = "space_center"
 name = "Orbital Launch Complex"
 cost = 860
@@ -1073,7 +1601,7 @@ science = 12
 tech = "orbital_colonization"
 wins_science = true
 
-# --- UNIQUE WORLD WONDERS (10 — only 1 civilization in the world can build each!) ---
+# --- UNIQUE WORLD WONDERS (12 — only 1 civilization in the world can build each!) ---
 [[buildings]]
 id = "wonder_pyramids"
 name = "Great Pyramids"
@@ -1162,6 +1690,17 @@ tech = "economics"
 is_wonder = true
 
 [[buildings]]
+id = "wonder_statue_of_liberty"
+name = "Statue of Liberty"
+cost = 470
+upkeep = 0
+production = 6
+production_pct = 15
+culture = 6
+tech = "replaceable_parts"
+is_wonder = true
+
+[[buildings]]
 id = "wonder_pentagon"
 name = "The Pentagon"
 cost = 520
@@ -1171,6 +1710,17 @@ unit_xp = 25
 defense = 10
 culture = 3
 tech = "combined_arms"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_sydney_opera"
+name = "Sydney Opera House"
+cost = 570
+upkeep = 0
+food = 4
+gold = 6
+culture = 10
+tech = "ecology"
 is_wonder = true
 
 [[buildings]]

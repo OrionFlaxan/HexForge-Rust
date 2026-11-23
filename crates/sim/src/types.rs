@@ -8,7 +8,7 @@ pub type TechId = u8;
 pub type UnitKindId = u8;
 pub type BuildingId = u8;
 pub type PolicyId = u8;
-pub type TechBits = u64;
+pub type TechBits = u128;
 pub type BuildingBits = u64;
 pub type PolicyBits = u32;
 
@@ -311,12 +311,41 @@ pub enum Improvement {
     Farm = 1,
     Mine = 2,
     Pasture = 3,
-    TradingPost = 4,
-    LumberMill = 5,
-    OilWell = 6,
+    Quarry = 4,
+    Plantation = 5,
+    Camp = 6,
+    LumberMill = 7,
+    TerraceFarm = 8,
+    TradingPost = 9,
+    Fort = 10,
+    OilWell = 11,
+    PowerPlant = 12,
+    SolarFarm = 13,
+    ResearchOutpost = 14,
+    Airbase = 15,
+    Arcology = 16,
 }
 
 impl Improvement {
+    pub const ALL: [Improvement; 16] = [
+        Improvement::Farm,
+        Improvement::Mine,
+        Improvement::Pasture,
+        Improvement::Quarry,
+        Improvement::Plantation,
+        Improvement::Camp,
+        Improvement::LumberMill,
+        Improvement::TerraceFarm,
+        Improvement::TradingPost,
+        Improvement::Fort,
+        Improvement::OilWell,
+        Improvement::PowerPlant,
+        Improvement::SolarFarm,
+        Improvement::ResearchOutpost,
+        Improvement::Airbase,
+        Improvement::Arcology,
+    ];
+
     #[inline]
     pub const fn name(self) -> &'static str {
         match self {
@@ -324,9 +353,55 @@ impl Improvement {
             Improvement::Farm => "Farm",
             Improvement::Mine => "Mine",
             Improvement::Pasture => "Pasture",
-            Improvement::TradingPost => "Trading Post",
+            Improvement::Quarry => "Quarry",
+            Improvement::Plantation => "Plantation",
+            Improvement::Camp => "Camp",
             Improvement::LumberMill => "Lumber Mill",
+            Improvement::TerraceFarm => "Terrace Farm",
+            Improvement::TradingPost => "Trading Post",
+            Improvement::Fort => "Fort",
             Improvement::OilWell => "Oil Well",
+            Improvement::PowerPlant => "Power Plant",
+            Improvement::SolarFarm => "Solar Farm",
+            Improvement::ResearchOutpost => "Research Outpost",
+            Improvement::Airbase => "Forward Airbase",
+            Improvement::Arcology => "Arcology Dome",
+        }
+    }
+
+    #[inline]
+    pub const fn is_fortification(self) -> bool {
+        matches!(self, Improvement::Fort | Improvement::Airbase)
+    }
+
+    #[inline]
+    pub const fn allows_neutral_tile(self) -> bool {
+        matches!(self, Improvement::Fort | Improvement::Airbase)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WorkerOrder {
+    BuildImprovement(Improvement),
+    BuildRoad,
+    BuildRailroad,
+    ChopForest,
+    ClearJungle,
+    DrainMarsh,
+    Repair,
+}
+
+impl WorkerOrder {
+    #[inline]
+    pub const fn name(self) -> &'static str {
+        match self {
+            WorkerOrder::BuildImprovement(imp) => imp.name(),
+            WorkerOrder::BuildRoad => "Build Road",
+            WorkerOrder::BuildRailroad => "Build Railroad",
+            WorkerOrder::ChopForest => "Chop Forest (+20P)",
+            WorkerOrder::ClearJungle => "Clear Jungle",
+            WorkerOrder::DrainMarsh => "Drain Marsh",
+            WorkerOrder::Repair => "Repair Improvement",
         }
     }
 }

@@ -394,12 +394,12 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         template_order.swap(0, chosen_tpl);
     }
 
-    // Starting techs for configured StartEra
-    let start_era = config.rules.start_era.min(5);
-    let mut start_tech_bits = 1u64 << 0; // Agriculture always known
+    // Starting techs for configured StartEra (Ancient=0 .. Information=7)
+    let start_era = config.rules.start_era.min(7);
+    let mut start_tech_bits = 1u128 << 0; // Agriculture always known
     for t in &rules.techs {
         if t.era < start_era {
-            start_tech_bits |= 1u64 << t.id;
+            start_tech_bits |= 1u128 << t.id;
         }
     }
     let start_gold = 40 + (start_era as i32) * 90;
