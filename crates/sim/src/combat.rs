@@ -1,5 +1,8 @@
+use crate::policies::aggregate_policy_bonuses;
 use crate::ruleset::Ruleset;
-use crate::types::{CityId, CivId, UnitFormation, UnitId, INVALID_CITY, INVALID_TILE, INVALID_UNIT};
+use crate::types::{
+    CityId, CivId, UnitFormation, UnitId, UnitRole, INVALID_CITY, INVALID_TILE, INVALID_UNIT,
+};
 use crate::world::World;
 
 #[derive(Debug, Clone, Copy)]
@@ -10,7 +13,7 @@ pub struct CombatPreview {
     pub defender_strength: i32,
 }
 
-/// Effective combat strength of a unit including Corps/Army bonus, XP promotions, and HP scaling.
+/// Effective combat strength including Corps/Army bonus, XP, Civ Trait, Social Policies, and Difficulty!
 #[inline]
 pub fn unit_effective_strength(
     world: &World,
@@ -30,7 +33,19 @@ pub fn unit_effective_strength(
     let form_bonus = world.units.formation[i].strength_bonus();
     let mut strength = base + form_bonus;
 
-    let mut pct_mod = 100i32;
+    let civ = world.units.civ[i] as usize;
+    let cs = &world.civs[civ];
+    let tpl = &rules.civs[cs.template_idx as usize];
+    let pbonus = aggregate_policy_bonuses(rules, cs.policy_bits);
+
+    let mut pct_mod = 100i32 + (tpl.combat_pct as i32) + pbonus.combat_pct;
+    if def.role == UnitRole::Cavalry {
+        pct_mod += tpl.cavalry_pct as i32;
+    }
+    if !cs.is_human && world.config.human_civ.is_some() {
+        pct_mod += world.config.rules.difficulty.ai_combat_pct();
+    }
+
     // XP promotions: +5% per 30 XP (up to +25%)
     let level = (world.units.xp[i] / 30).min(5) as i32;
     pct_mod += level * 5;
@@ -45,14 +60,13 @@ pub fn unit_effective_strength(
         pct_mod += def.city_attack_bonus as i32;
     }
 
-    // Wounded units lose up to 35% strength linearly with missing HP
     let hp = world.units.hp[i].clamp(1, 100) as i32;
     let hp_scale = 65 + (hp * 35) / 100;
-    strength = (strength * pct_mod / 100) * hp_scale / 100;
+    strength = (strength * pct_mod.max(40) / 100) * hp_scale / 100;
     strength.max(1)
 }
 
-/// Effective defensive strength of a city (base + pop + buildings + garrison bonus).
+/// Effective defensive strength of a city (base + pop + buildings/wonders + policies + garrison).
 #[inline]
 pub fn city_defense_strength(world: &World, rules: &Ruleset, city: CityId) -> i32 {
     let ci = city as usize;
@@ -66,6 +80,9 @@ pub fn city_defense_strength(world: &World, rules: &Ruleset, city: CityId) -> i3
             s += b.defense as i32;
         }
     }
+    let pbonus = aggregate_policy_bonuses(rules, world.civs[world.cities.civ[ci] as usize].policy_bits);
+    s += pbonus.city_defense as i32;
+
     if world.map.elevation[world.cities.pos[ci] as usize] == crate::types::Elevation::Hill {
         s += 4;
     }
@@ -90,12 +107,12 @@ pub fn preview_unit_combat(world: &World, rules: &Ruleset, attacker: UnitId, def
     let di = defender as usize;
     let adef = &rules.units[world.units.kind[ai] as usize];
     let dist = world.map.distance(world.units.pos[ai], world.units.pos[di]);
-    let is_ranged = adef.ranged_strength > 0 && (dist > 1 || adef.role.is_ranged_attacker());
+    let is_air = adef.role.is_air();
+    let is_ranged = is_air || (adef.ranged_strength > 0 && (dist > 1 || adef.role.is_ranged_attacker()));
 
     let mut atk_s = unit_effective_strength(world, rules, attacker, is_ranged, false, false);
     let def_s = unit_effective_strength(world, rules, defender, false, true, false);
 
-    // Flanking bonus (+8% per other friendly adjacent combat unit)
     if !is_ranged {
         let aciv = world.units.civ[ai];
         let mut flank = 0;
@@ -113,7 +130,10 @@ pub fn preview_unit_combat(world: &World, rules: &Ruleset, attacker: UnitId, def
     let raw_def_dmg = civ_damage_formula(atk_s, def_s) as i32;
     let def_dmg = (raw_def_dmg * world.units.formation[di].incoming_damage_pct() / 100).max(4) as i16;
 
-    let atk_dmg = if is_ranged {
+    let atk_dmg = if is_air {
+        // Light AA flak attrition on air strikes
+        ((def_s * 10) / atk_s.max(1)).clamp(4, 18) as i16
+    } else if is_ranged {
         0
     } else {
         let raw_atk_dmg = civ_damage_formula(def_s, atk_s) as i32;
@@ -128,7 +148,7 @@ pub fn preview_unit_combat(world: &World, rules: &Ruleset, attacker: UnitId, def
     }
 }
 
-/// Execute unit attacking another unit. Returns `true` if attack occurred.
+/// Execute unit attacking another unit (melee, ranged, or air strike).
 pub fn attack_unit(world: &mut World, rules: &Ruleset, attacker: UnitId, defender: UnitId) -> bool {
     if !world.units.is_alive(attacker) || !world.units.is_alive(defender) {
         return false;
@@ -150,13 +170,13 @@ pub fn attack_unit(world: &mut World, rules: &Ruleset, attacker: UnitId, defende
     if dist > max_range {
         return false;
     }
-    if dist > 1 && !world.map.has_los(world.units.pos[ai], world.units.pos[di]) {
+    if !adef.role.is_air() && dist > 1 && !world.map.has_los(world.units.pos[ai], world.units.pos[di]) {
         return false;
     }
 
     let preview = preview_unit_combat(world, rules, attacker, defender);
     let def_pos = world.units.pos[di];
-    let is_ranged = adef.ranged_strength > 0 && (dist > 1 || adef.role.is_ranged_attacker());
+    let is_ranged = adef.role.is_air() || (adef.ranged_strength > 0 && (dist > 1 || adef.role.is_ranged_attacker()));
 
     world.units.hp[di] -= preview.defender_dmg;
     world.units.hp[ai] -= preview.attacker_dmg;
@@ -175,7 +195,6 @@ pub fn attack_unit(world: &mut World, rules: &Ruleset, attacker: UnitId, defende
     if atk_died {
         world.despawn_unit(rules, attacker);
     } else if def_died && !is_ranged {
-        // Melee/Cavalry advances into the cleared tile if passable and no enemy city stands there
         let can_advance = world.cities.tile_city[def_pos as usize] == INVALID_CITY
             || world.cities.civ[world.cities.tile_city[def_pos as usize] as usize] == aciv;
         if can_advance {
@@ -189,7 +208,7 @@ pub fn attack_unit(world: &mut World, rules: &Ruleset, attacker: UnitId, defende
     true
 }
 
-/// Execute unit attacking an enemy city (ranged or melee capture).
+/// Execute unit attacking an enemy city (ranged, air strike, or melee capture).
 pub fn attack_city(world: &mut World, rules: &Ruleset, attacker: UnitId, city: CityId) -> bool {
     if !world.units.is_alive(attacker) || !world.cities.is_alive(city) {
         return false;
@@ -212,16 +231,19 @@ pub fn attack_city(world: &mut World, rules: &Ruleset, attacker: UnitId, city: C
     if dist > max_range {
         return false;
     }
-    if dist > 1 && !world.map.has_los(world.units.pos[ai], cpos) {
+    if !adef.role.is_air() && dist > 1 && !world.map.has_los(world.units.pos[ai], cpos) {
         return false;
     }
 
-    let is_ranged = adef.ranged_strength > 0 && (dist > 1 || adef.role.is_ranged_attacker());
+    let is_air = adef.role.is_air();
+    let is_ranged = is_air || (adef.ranged_strength > 0 && (dist > 1 || adef.role.is_ranged_attacker()));
     let atk_s = unit_effective_strength(world, rules, attacker, is_ranged, false, true);
     let def_s = city_defense_strength(world, rules, city);
 
     let city_dmg = civ_damage_formula(atk_s, def_s);
-    let atk_dmg = if is_ranged {
+    let atk_dmg = if is_air {
+        ((def_s * 12) / atk_s.max(1)).clamp(5, 22) as i16
+    } else if is_ranged {
         0
     } else {
         let raw = civ_damage_formula(def_s, atk_s) as i32;
@@ -239,12 +261,10 @@ pub fn attack_city(world: &mut World, rules: &Ruleset, attacker: UnitId, city: C
     } else if world.cities.hp[ci] <= 0 {
         if adef.role.can_capture_city() && !is_ranged {
             capture_city(world, rules, city, aciv);
-            // Move conqueror into captured city if empty
             if world.units.tile_mil_unit[cpos as usize] == INVALID_UNIT {
                 world.move_unit_step(rules, attacker, cpos, 0);
             }
         } else {
-            // Ranged/siege reduces city to 1 HP; needs melee/cavalry to occupy
             world.cities.hp[ci] = 1;
         }
     }
@@ -289,13 +309,11 @@ pub fn city_bombard(world: &mut World, rules: &Ruleset, city: CityId, target: Un
     true
 }
 
-/// Transfer city ownership, kill enemy garrison if any, transfer territory, and check civ elimination.
 pub fn capture_city(world: &mut World, rules: &Ruleset, city: CityId, new_owner: CivId) {
     let ci = city as usize;
     let old_owner = world.cities.civ[ci];
     let cpos = world.cities.pos[ci];
 
-    // Destroy any garrison belonging to old_owner
     let gar = world.units.tile_mil_unit[cpos as usize];
     if gar != INVALID_UNIT && world.units.civ[gar as usize] == old_owner {
         world.despawn_unit(rules, gar);
@@ -308,14 +326,12 @@ pub fn capture_city(world: &mut World, rules: &Ruleset, city: CityId, new_owner:
     world.cities.producing[ci] = None;
     world.cities.prod_stored[ci] = 0;
 
-    // Transfer owned tiles belonging to this city
     for t in 0..world.map.num_tiles {
         if world.map.owner_city[t] == city {
             world.map.owner[t] = new_owner;
         }
     }
 
-    // Reassign capital or eliminate old_owner if 0 cities remain
     let mut remaining_city = INVALID_CITY;
     for c in 0..world.cities.len() {
         if world.cities.alive[c] && world.cities.civ[c] == old_owner {
@@ -326,7 +342,6 @@ pub fn capture_city(world: &mut World, rules: &Ruleset, city: CityId, new_owner:
     if remaining_city == INVALID_CITY {
         world.civs[old_owner as usize].alive = false;
         world.civs[old_owner as usize].capital = INVALID_CITY;
-        // Disband remaining units of defeated civ
         let mut to_kill = Vec::new();
         for u in 0..world.units.len() {
             if world.units.alive[u] && world.units.civ[u] == old_owner {
@@ -341,15 +356,17 @@ pub fn capture_city(world: &mut World, rules: &Ruleset, city: CityId, new_owner:
         world.cities.is_capital[remaining_city as usize] = true;
     }
 
-    // Rebuild vision for both civs cleanly
     world.vision.rebuild_civ(&world.map, &world.units, &world.cities, rules, new_owner);
     if world.civs[old_owner as usize].alive {
         world.vision.rebuild_civ(&world.map, &world.units, &world.cities, rules, old_owner);
     }
 }
 
-/// Check if `unit_a` and `unit_b` can merge into a Corps or Army (Pillar 2).
+/// Check if `unit_a` and `unit_b` can merge into a Corps or Army (respecting `allow_corps_armies` rule).
 pub fn can_merge_units(world: &World, rules: &Ruleset, unit_a: UnitId, unit_b: UnitId) -> Option<UnitFormation> {
+    if !world.config.rules.allow_corps_armies {
+        return None;
+    }
     if unit_a == unit_b || !world.units.is_alive(unit_a) || !world.units.is_alive(unit_b) {
         return None;
     }
@@ -385,7 +402,6 @@ pub fn can_merge_units(world: &World, rules: &Ruleset, unit_a: UnitId, unit_b: U
     }
 }
 
-/// Merge `donor` into `keeper`, upgrading `keeper` to Corps or Army and freeing 1 supply slot!
 pub fn merge_units(world: &mut World, rules: &Ruleset, keeper: UnitId, donor: UnitId) -> bool {
     let Some(next_form) = can_merge_units(world, rules, keeper, donor) else {
         return false;
@@ -410,9 +426,8 @@ pub fn merge_units(world: &mut World, rules: &Ruleset, keeper: UnitId, donor: Un
     true
 }
 
-/// Find the first adjacent merge partner for `unit`, if any.
 pub fn find_merge_partner(world: &World, rules: &Ruleset, unit: UnitId) -> Option<UnitId> {
-    if !world.units.is_alive(unit) {
+    if !world.config.rules.allow_corps_armies || !world.units.is_alive(unit) {
         return None;
     }
     let pos = world.units.pos[unit as usize];

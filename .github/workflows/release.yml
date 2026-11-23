@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag name (e.g. v0.2.0)'
+        description: 'Release tag name (e.g. v0.3.0)'
         required: true
-        default: 'v0.2.0'
+        default: 'v0.3.0'
       prerelease:
         description: 'Mark as pre-release'
         required: false
@@ -124,25 +124,27 @@ jobs:
           fi
 
           cat <<'NOTESEOF' > release-notes.md
-          ## HexForge-Rust — 100% Pure-Rust 4X Strategy Game
+          ## HexForge-Rust v0.3.0 — Mobile DPI UI, Rules/Codex, Options & 6-Era Expansion
 
-          Built from the ground up in **100% Rust** (zero JVM, zero GC) so any Android phone can play **300+ turns on Huge 22-civ maps with near-instant turns and 60–120 FPS rendering**.
+          Built from the ground up in **100% Pure Rust** (zero JVM, zero GC) for **Android (all 4 ABIs, API 21+)** and **Desktop** — now redesigned for crisp, thumb-friendly mobile play in **both Portrait and Landscape**!
+
+          ### What's New in Update 0.3.0
+          - **True Android High-DPI Scaling + Portrait & Landscape Support:** Reads Android's real `DisplayMetrics.density` (`HEXFORGE_DPI_SCALE`) so every button, HUD bar, font, modal, and hex tile scales cleanly to thumb-friendly proportions on any phone or tablet — plus a **live UI Scale selector (`75%–150%`)** in **Options**!
+          - **Persistent Options & Display Settings (`options.toml`):** Live UI Scale, Tile Yields overlay, Hex Grid toggle, Resource badges, Rust Perf/FPS HUD toggle, Auto-Next Unit, and Autosave interval.
+          - **Custom Game Rules & 22-Civ Picker:** Choose **Difficulty** (`Settler`–`Deity`), **Game Speed** (`Quick`–`Marathon`), **Map Type** (`Continents`, `Pangaea`, `Archipelago`, `Fractal`), **Start Era** (`Ancient`–`Industrial`), **Victory Toggles**, **Corps/Armies & Fog-of-War toggles**, and **any of the 22 Civilizations** (each with a unique Empire Trait!).
+          - **5-Tab In-Game Rules & Codex (Civilopedia):** Browse *How to Play*, *Combat & Corps/Supply Rules*, all *32 Units*, *50 Techs & 10 Unique World Wonders*, and *22 Civs & 20 Social Policies* from both Title and In-Game.
+          - **6 Full Eras, 50 Techs, 32 Units (incl. Air & Naval), 21 Buildings + 10 Unique World Wonders & 5-Tree Social Policies:** Added Air Fighters/Bombers/Stealth Bombers, Submarines/Destroyers, Giant Mech, Worker Roads & Railroads, 10 globally exclusive World Wonders, and 20 Social Policies with **Culture Victory** (12 policies = 3 full trees).
 
           ### Included Downloads
-          - **`HexForge-Rust-Android.apk`** (~6.8 MB) — Universal Android 5.0+ (API 21+) APK bundling stripped Rust OpenGL ES 3 libraries for all 4 ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`). Uses package ID `com.orionflaxan.hexforge` so it installs **side-by-side** alongside Unciv!
-          - **`HexForge-Rust-Linux-x86_64`** (~1.7 MB) — Standalone native Linux Desktop binary.
+          - **`HexForge-Rust-Android.apk`** (~7.6 MB) — Universal Android 5.0+ APK with all 4 stripped ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`). Installs **side-by-side** alongside Unciv (`com.orionflaxan.hexforge`) — updates cleanly over v0.2.0!
+          - **`HexForge-Rust-Linux-x86_64`** (~1.9 MB) — Standalone native Linux Desktop binary.
           - **`HexForge-Bench-Linux-x86_64`** (~1.2 MB) — Headless 350-turn stress benchmark CLI.
 
-          ### Verified 350-Turn Huge Map Performance (4,992 Tiles, 22 AI Civs, 112 Cities, 774 Formations / 1,483 Unit-Equivalents)
-          - **Turns 301–350 (Parallel Multi-Thread):** **`3.97 ms/turn`** mean (max `5.44 ms`) — **1.48 seconds total for all 350 turns!**
-          - **Perceived Next-Turn (Background Speculative AI, 95.2% hit rate):** **`1.77 ms/turn`** mean (max `3.04 ms`)
-          - **Save / Load at Turn 351:** **`3.54 ms`** save (`119 KB`) / **`2.87 ms`** load
-          - **Strict Determinism:** 1-thread and multi-thread simulations produce 100% bit-for-bit identical worlds.
-
-          ### Android Installation
-          1. Tap **`HexForge-Rust-Android.apk`** below on your phone.
-          2. Open the downloaded `.apk` and allow **Install unknown apps** if prompted.
-          3. Installs **side-by-side** with Unciv — no need to uninstall anything!
+          ### Verified 350-Turn Huge Map Performance (4,992 Tiles, 22 AI Civs, 106 Cities, 927 Formations / 1,522 Unit-Equivalents)
+          - **All 350 Turns Total (Parallel):** **`1.96 seconds`** (**`5.54 ms/turn`** mean)
+          - **Perceived Next-Turn (Speculative AI, 95.2% hit rate):** **`2.51 ms/turn`** overall (**`3.91 ms/turn`** in Turns 301–350)
+          - **Turn-351 Save / Load:** **`3.57 ms`** save (`124 KB`) / **`2.78 ms`** load (Save format v2)
+          - **Strict Determinism:** 1-thread and multi-thread 350-turn simulations produce 100% bit-for-bit identical worlds (`0x5a95e03a5fed7b94`).
           NOTESEOF
 
           if gh release view "$TAG" >/dev/null 2>&1; then

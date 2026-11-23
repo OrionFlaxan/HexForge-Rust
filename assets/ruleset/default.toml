@@ -1,6 +1,10 @@
-# HexForge-Rust Default 4-Era Ruleset
-# Compiled into dense integer-indexed arrays and u64 bitsets at engine startup.
+# HexForge-Rust v0.3.0 — 6-Era Data-Driven Ruleset
+# Compiled at engine startup into dense integer arrays and u64/u32 bitmasks (zero string hashing during play).
+# Eras: 0 = Ancient, 1 = Classical, 2 = Medieval, 3 = Renaissance, 4 = Industrial, 5 = Modern & Future
 
+# ==================== TECHNOLOGIES (50 Total) ====================
+
+# --- ERA 0: ANCIENT (8) ---
 [[techs]]
 id = "agriculture"
 name = "Agriculture"
@@ -12,182 +16,362 @@ prereqs = []
 id = "mining"
 name = "Mining"
 era = 0
-cost = 35
+cost = 30
 prereqs = ["agriculture"]
 
 [[techs]]
 id = "archery"
 name = "Archery"
 era = 0
-cost = 35
+cost = 30
 prereqs = ["agriculture"]
 
 [[techs]]
 id = "animal_husbandry"
 name = "Animal Husbandry"
 era = 0
-cost = 35
+cost = 30
 prereqs = ["agriculture"]
 
 [[techs]]
 id = "pottery"
 name = "Pottery"
 era = 0
-cost = 35
+cost = 30
 prereqs = ["agriculture"]
 
 [[techs]]
 id = "sailing"
 name = "Sailing"
 era = 0
-cost = 45
+cost = 40
 prereqs = ["pottery"]
 
+[[techs]]
+id = "masonry"
+name = "Masonry"
+era = 0
+cost = 40
+prereqs = ["mining"]
+
+[[techs]]
+id = "wheel"
+name = "The Wheel"
+era = 0
+cost = 45
+prereqs = ["animal_husbandry", "archery"]
+unlocks_roads = true
+
+# --- ERA 1: CLASSICAL (8) ---
 [[techs]]
 id = "bronze_working"
 name = "Bronze Working"
 era = 1
-cost = 65
+cost = 60
 prereqs = ["mining"]
 
 [[techs]]
 id = "writing"
 name = "Writing"
 era = 1
+cost = 60
+prereqs = ["pottery"]
+
+[[techs]]
+id = "calendar"
+name = "Calendar"
+era = 1
 cost = 65
 prereqs = ["pottery"]
 
 [[techs]]
-id = "wheel"
-name = "The Wheel"
-era = 1
-cost = 65
-prereqs = ["animal_husbandry", "archery"]
-
-[[techs]]
-id = "masonry"
-name = "Masonry"
+id = "optics"
+name = "Optics"
 era = 1
 cost = 70
-prereqs = ["mining"]
+prereqs = ["sailing"]
+unlocks_embark = true
 
 [[techs]]
 id = "iron_working"
 name = "Iron Working"
 era = 1
-cost = 105
+cost = 90
 prereqs = ["bronze_working"]
 
 [[techs]]
 id = "mathematics"
 name = "Mathematics"
 era = 1
-cost = 105
+cost = 90
 prereqs = ["wheel", "writing"]
 
 [[techs]]
 id = "currency"
 name = "Currency"
 era = 1
-cost = 110
-prereqs = ["writing"]
+cost = 95
+prereqs = ["writing", "calendar"]
 
 [[techs]]
 id = "horseback_riding"
 name = "Horseback Riding"
 era = 1
-cost = 110
+cost = 95
 prereqs = ["wheel"]
+
+# --- ERA 2: MEDIEVAL (9) ---
+[[techs]]
+id = "construction"
+name = "Construction"
+era = 2
+cost = 135
+prereqs = ["masonry", "mathematics"]
 
 [[techs]]
 id = "engineering"
 name = "Engineering"
 era = 2
-cost = 175
-prereqs = ["mathematics", "masonry"]
+cost = 145
+prereqs = ["mathematics", "construction"]
+
+[[techs]]
+id = "metal_casting"
+name = "Metal Casting"
+era = 2
+cost = 150
+prereqs = ["iron_working", "engineering"]
+
+[[techs]]
+id = "theology"
+name = "Theology"
+era = 2
+cost = 145
+prereqs = ["calendar", "writing"]
+
+[[techs]]
+id = "civil_service"
+name = "Civil Service"
+era = 2
+cost = 155
+prereqs = ["currency", "theology"]
+
+[[techs]]
+id = "guilds"
+name = "Guilds"
+era = 2
+cost = 160
+prereqs = ["currency"]
 
 [[techs]]
 id = "chivalry"
 name = "Chivalry"
 era = 2
-cost = 195
-prereqs = ["horseback_riding", "currency"]
+cost = 175
+prereqs = ["horseback_riding", "civil_service"]
+
+[[techs]]
+id = "machinery"
+name = "Machinery"
+era = 2
+cost = 185
+prereqs = ["engineering", "guilds"]
 
 [[techs]]
 id = "military_tactics"
 name = "Military Tactics"
 era = 2
-cost = 210
-prereqs = ["iron_working", "engineering"]
+cost = 195
+prereqs = ["iron_working", "civil_service"]
 unlocks_corps = true
 
+# --- ERA 3: RENAISSANCE (8) ---
 [[techs]]
 id = "education"
 name = "Education"
-era = 2
-cost = 210
-prereqs = ["currency", "writing"]
+era = 3
+cost = 230
+prereqs = ["theology", "civil_service"]
+
+[[techs]]
+id = "compass"
+name = "Compass"
+era = 3
+cost = 220
+prereqs = ["optics", "guilds"]
+
+[[techs]]
+id = "astronomy"
+name = "Astronomy"
+era = 3
+cost = 260
+prereqs = ["education", "compass"]
+unlocks_ocean_embark = true
+
+[[techs]]
+id = "banking"
+name = "Banking"
+era = 3
+cost = 265
+prereqs = ["guilds", "education"]
+
+[[techs]]
+id = "printing_press"
+name = "Printing Press"
+era = 3
+cost = 280
+prereqs = ["machinery", "education"]
 
 [[techs]]
 id = "gunpowder"
 name = "Gunpowder"
-era = 2
-cost = 280
-prereqs = ["military_tactics", "chivalry"]
+era = 3
+cost = 290
+prereqs = ["metal_casting", "military_tactics"]
+
+[[techs]]
+id = "chemistry"
+name = "Chemistry"
+era = 3
+cost = 320
+prereqs = ["gunpowder", "printing_press"]
 
 [[techs]]
 id = "navigation"
 name = "Navigation"
-era = 2
-cost = 260
-prereqs = ["sailing", "education"]
-unlocks_ocean_embark = true
+era = 3
+cost = 320
+prereqs = ["astronomy", "gunpowder"]
+
+# --- ERA 4: INDUSTRIAL (9) ---
+[[techs]]
+id = "economics"
+name = "Economics"
+era = 4
+cost = 380
+prereqs = ["banking", "printing_press"]
+
+[[techs]]
+id = "scientific_theory"
+name = "Scientific Theory"
+era = 4
+cost = 395
+prereqs = ["printing_press", "chemistry"]
+
+[[techs]]
+id = "metallurgy"
+name = "Metallurgy"
+era = 4
+cost = 390
+prereqs = ["chivalry", "gunpowder"]
 
 [[techs]]
 id = "industrialization"
 name = "Industrialization"
-era = 3
-cost = 420
-prereqs = ["gunpowder", "education"]
+era = 4
+cost = 440
+prereqs = ["economics", "metallurgy"]
+
+[[techs]]
+id = "steam_power"
+name = "Steam Power"
+era = 4
+cost = 460
+prereqs = ["industrialization", "navigation"]
+unlocks_railroads = true
 
 [[techs]]
 id = "rifling"
 name = "Rifling"
-era = 3
-cost = 440
-prereqs = ["gunpowder"]
+era = 4
+cost = 450
+prereqs = ["metallurgy", "chemistry"]
+
+[[techs]]
+id = "dynamite"
+name = "Dynamite"
+era = 4
+cost = 510
+prereqs = ["chemistry", "rifling"]
+
+[[techs]]
+id = "electricity"
+name = "Electricity"
+era = 4
+cost = 520
+prereqs = ["scientific_theory", "steam_power"]
 
 [[techs]]
 id = "mobilization"
 name = "Mobilization"
-era = 3
-cost = 520
+era = 4
+cost = 540
 prereqs = ["industrialization", "rifling"]
 unlocks_army = true
+
+# --- ERA 5: MODERN & FUTURE (8) ---
+[[techs]]
+id = "flight"
+name = "Flight"
+era = 5
+cost = 640
+prereqs = ["steam_power", "electricity"]
+unlocks_flight = true
+
+[[techs]]
+id = "radio"
+name = "Radio"
+era = 5
+cost = 650
+prereqs = ["electricity"]
+
+[[techs]]
+id = "plastics"
+name = "Plastics"
+era = 5
+cost = 700
+prereqs = ["scientific_theory", "radio"]
 
 [[techs]]
 id = "combined_arms"
 name = "Combined Arms"
-era = 3
-cost = 680
-prereqs = ["mobilization", "navigation"]
+era = 5
+cost = 740
+prereqs = ["mobilization", "flight"]
+
+[[techs]]
+id = "nuclear_fission"
+name = "Nuclear Fission"
+era = 5
+cost = 840
+prereqs = ["plastics", "combined_arms"]
 
 [[techs]]
 id = "rocketry"
 name = "Rocketry"
-era = 3
-cost = 860
-prereqs = ["combined_arms"]
+era = 5
+cost = 900
+prereqs = ["flight", "plastics", "dynamite"]
 
 [[techs]]
-id = "space_program"
-name = "Space Program"
-era = 3
-cost = 1100
-prereqs = ["rocketry"]
+id = "robotics"
+name = "Robotics"
+era = 5
+cost = 1040
+prereqs = ["nuclear_fission", "rocketry"]
+
+[[techs]]
+id = "orbital_colonization"
+name = "Orbital Colonization"
+era = 5
+cost = 1220
+prereqs = ["robotics"]
 unlocks_science_victory = true
 
-# === UNITS ===
+
+# ==================== UNITS (32 Total across 9 Roles) ====================
+
+# --- Civilians & Recon (3) ---
 [[units]]
 id = "settler"
 name = "Settler"
@@ -224,6 +408,7 @@ moves = 3
 sight = 3
 upkeep = 1
 
+# --- Melee Line (8) ---
 [[units]]
 id = "warrior"
 name = "Warrior"
@@ -238,6 +423,119 @@ upkeep = 1
 upgrades_to = "swordsman"
 
 [[units]]
+id = "spearman"
+name = "Spearman"
+role = "melee"
+cost = 52
+strength = 12
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+tech = "bronze_working"
+upgrades_to = "pikeman"
+
+[[units]]
+id = "swordsman"
+name = "Swordsman"
+role = "melee"
+cost = 72
+strength = 16
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "iron_working"
+upgrades_to = "musketman"
+
+[[units]]
+id = "pikeman"
+name = "Pikeman"
+role = "melee"
+cost = 90
+strength = 19
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "civil_service"
+upgrades_to = "rifleman"
+
+[[units]]
+id = "musketman"
+name = "Musketman"
+role = "melee"
+cost = 135
+strength = 26
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 3
+tech = "gunpowder"
+upgrades_to = "rifleman"
+
+[[units]]
+id = "rifleman"
+name = "Rifleman"
+role = "melee"
+cost = 195
+strength = 36
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 4
+tech = "rifling"
+upgrades_to = "infantry"
+
+[[units]]
+id = "infantry"
+name = "Infantry"
+role = "melee"
+cost = 275
+strength = 54
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 5
+tech = "mobilization"
+upgrades_to = "mech_infantry"
+
+[[units]]
+id = "mech_infantry"
+name = "Mechanized Infantry"
+role = "melee"
+cost = 350
+strength = 70
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 2
+upkeep = 6
+tech = "plastics"
+upgrades_to = "giant_mech"
+
+[[units]]
+id = "giant_mech"
+name = "Giant Mech"
+role = "melee"
+cost = 520
+strength = 96
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 3
+upkeep = 9
+tech = "robotics"
+city_attack_bonus = 40
+
+# --- Ranged Line (4) ---
+[[units]]
 id = "archer"
 name = "Archer"
 role = "ranged"
@@ -249,55 +547,55 @@ moves = 2
 sight = 2
 upkeep = 1
 tech = "archery"
-upgrades_to = "crossbowman"
+upgrades_to = "composite_bow"
 
 [[units]]
-id = "spearman"
-name = "Spearman"
-role = "melee"
-cost = 55
-strength = 12
-ranged_strength = 0
-range = 0
-moves = 2
-sight = 2
-upkeep = 1
-tech = "bronze_working"
-upgrades_to = "musketman"
-
-[[units]]
-id = "galley"
-name = "Galley"
-role = "naval"
-cost = 55
-strength = 11
-ranged_strength = 0
-range = 0
-moves = 3
-sight = 2
-upkeep = 1
-tech = "sailing"
-upgrades_to = "frigate"
-
-[[units]]
-id = "swordsman"
-name = "Swordsman"
-role = "melee"
-cost = 75
-strength = 16
-ranged_strength = 0
-range = 0
+id = "composite_bow"
+name = "Composite Bowman"
+role = "ranged"
+cost = 72
+strength = 8
+ranged_strength = 13
+range = 2
 moves = 2
 sight = 2
 upkeep = 2
-tech = "iron_working"
-upgrades_to = "musketman"
+tech = "construction"
+upgrades_to = "crossbowman"
 
+[[units]]
+id = "crossbowman"
+name = "Crossbowman"
+role = "ranged"
+cost = 115
+strength = 13
+ranged_strength = 20
+range = 2
+moves = 2
+sight = 2
+upkeep = 2
+tech = "machinery"
+upgrades_to = "machine_gun"
+
+[[units]]
+id = "machine_gun"
+name = "Machine Gun"
+role = "ranged"
+cost = 240
+strength = 36
+ranged_strength = 44
+range = 2
+moves = 2
+sight = 2
+upkeep = 4
+tech = "industrialization"
+
+# --- Cavalry & Armor Line (6) ---
 [[units]]
 id = "horseman"
 name = "Horseman"
 role = "cavalry"
-cost = 75
+cost = 72
 strength = 15
 ranged_strength = 0
 range = 0
@@ -308,10 +606,80 @@ tech = "horseback_riding"
 upgrades_to = "knight"
 
 [[units]]
+id = "knight"
+name = "Knight"
+role = "cavalry"
+cost = 120
+strength = 23
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 2
+upkeep = 3
+tech = "chivalry"
+upgrades_to = "lancer"
+
+[[units]]
+id = "lancer"
+name = "Lancer"
+role = "cavalry"
+cost = 165
+strength = 30
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 2
+upkeep = 3
+tech = "metallurgy"
+upgrades_to = "cavalry"
+
+[[units]]
+id = "cavalry"
+name = "Cavalry"
+role = "cavalry"
+cost = 220
+strength = 40
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 2
+upkeep = 4
+tech = "rifling"
+upgrades_to = "tank"
+
+[[units]]
+id = "tank"
+name = "Heavy Tank"
+role = "cavalry"
+cost = 320
+strength = 62
+ranged_strength = 0
+range = 0
+moves = 5
+sight = 3
+upkeep = 6
+tech = "combined_arms"
+upgrades_to = "modern_armor"
+
+[[units]]
+id = "modern_armor"
+name = "Modern Armor"
+role = "cavalry"
+cost = 420
+strength = 82
+ranged_strength = 0
+range = 0
+moves = 5
+sight = 3
+upkeep = 7
+tech = "robotics"
+
+# --- Siege Line (5) ---
+[[units]]
 id = "catapult"
 name = "Catapult"
 role = "siege"
-cost = 80
+cost = 78
 strength = 7
 ranged_strength = 14
 range = 2
@@ -320,49 +688,95 @@ sight = 2
 upkeep = 2
 tech = "mathematics"
 city_attack_bonus = 60
-upgrades_to = "artillery"
+upgrades_to = "trebuchet"
 
 [[units]]
-id = "crossbowman"
-name = "Crossbowman"
-role = "ranged"
-cost = 110
-strength = 13
-ranged_strength = 19
+id = "trebuchet"
+name = "Trebuchet"
+role = "siege"
+cost = 120
+strength = 11
+ranged_strength = 21
 range = 2
 moves = 2
 sight = 2
 upkeep = 2
-tech = "engineering"
-upgrades_to = "artillery"
+tech = "machinery"
+city_attack_bonus = 75
+upgrades_to = "cannon"
 
 [[units]]
-id = "knight"
-name = "Knight"
-role = "cavalry"
-cost = 125
-strength = 23
-ranged_strength = 0
-range = 0
-moves = 4
-sight = 2
-upkeep = 3
-tech = "chivalry"
-upgrades_to = "tank"
-
-[[units]]
-id = "musketman"
-name = "Musketman"
-role = "melee"
-cost = 140
-strength = 26
-ranged_strength = 0
-range = 0
+id = "cannon"
+name = "Field Cannon"
+role = "siege"
+cost = 175
+strength = 16
+ranged_strength = 29
+range = 2
 moves = 2
 sight = 2
 upkeep = 3
-tech = "gunpowder"
-upgrades_to = "rifleman"
+tech = "chemistry"
+city_attack_bonus = 80
+upgrades_to = "artillery"
+
+[[units]]
+id = "artillery"
+name = "Artillery"
+role = "siege"
+cost = 240
+strength = 24
+ranged_strength = 42
+range = 3
+moves = 2
+sight = 2
+upkeep = 4
+tech = "dynamite"
+city_attack_bonus = 90
+upgrades_to = "rocket_artillery"
+
+[[units]]
+id = "rocket_artillery"
+name = "Rocket Artillery"
+role = "siege"
+cost = 390
+strength = 44
+ranged_strength = 74
+range = 3
+moves = 3
+sight = 2
+upkeep = 7
+tech = "rocketry"
+city_attack_bonus = 110
+
+# --- Naval Line (6) ---
+[[units]]
+id = "galley"
+name = "Galley"
+role = "naval"
+cost = 52
+strength = 11
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 2
+upkeep = 1
+tech = "sailing"
+upgrades_to = "caravel"
+
+[[units]]
+id = "caravel"
+name = "Caravel"
+role = "naval"
+cost = 110
+strength = 20
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 4
+upkeep = 2
+tech = "astronomy"
+upgrades_to = "destroyer"
 
 [[units]]
 id = "frigate"
@@ -370,7 +784,7 @@ name = "Frigate"
 role = "naval"
 cost = 155
 strength = 24
-ranged_strength = 28
+ranged_strength = 29
 range = 2
 moves = 5
 sight = 3
@@ -379,87 +793,104 @@ tech = "navigation"
 upgrades_to = "battleship"
 
 [[units]]
-id = "rifleman"
-name = "Rifleman"
-role = "melee"
-cost = 200
-strength = 36
+id = "destroyer"
+name = "Destroyer"
+role = "naval"
+cost = 250
+strength = 46
 ranged_strength = 0
 range = 0
-moves = 2
-sight = 2
-upkeep = 4
-tech = "rifling"
-upgrades_to = "infantry"
-
-[[units]]
-id = "artillery"
-name = "Artillery"
-role = "siege"
-cost = 230
-strength = 22
-ranged_strength = 38
-range = 3
-moves = 2
-sight = 2
-upkeep = 4
-tech = "industrialization"
-city_attack_bonus = 80
-
-[[units]]
-id = "infantry"
-name = "Infantry"
-role = "melee"
-cost = 290
-strength = 54
-ranged_strength = 0
-range = 0
-moves = 2
-sight = 2
+moves = 6
+sight = 4
 upkeep = 5
-tech = "mobilization"
+tech = "steam_power"
 
 [[units]]
-id = "tank"
-name = "Modern Armor"
-role = "cavalry"
-cost = 340
-strength = 66
-ranged_strength = 0
-range = 0
+id = "submarine"
+name = "Submarine"
+role = "naval"
+cost = 290
+strength = 34
+ranged_strength = 58
+range = 2
 moves = 5
 sight = 3
-upkeep = 6
-tech = "combined_arms"
+upkeep = 5
+tech = "electricity"
 
 [[units]]
 id = "battleship"
 name = "Battleship"
 role = "naval"
-cost = 350
-strength = 58
-ranged_strength = 64
+cost = 360
+strength = 60
+ranged_strength = 68
 range = 3
 moves = 5
 sight = 3
 upkeep = 6
 tech = "combined_arms"
 
+# --- Air Force Line (4) ---
 [[units]]
-id = "rocket_artillery"
-name = "Rocket Artillery"
-role = "siege"
-cost = 380
-strength = 42
+id = "biplane"
+name = "Fighter"
+role = "air"
+cost = 260
+strength = 40
+ranged_strength = 44
+range = 5
+moves = 1
+sight = 4
+upkeep = 5
+tech = "flight"
+upgrades_to = "jet_fighter"
+
+[[units]]
+id = "bomber"
+name = "Bomber"
+role = "air"
+cost = 300
+strength = 36
+ranged_strength = 54
+range = 6
+moves = 1
+sight = 3
+upkeep = 6
+tech = "flight"
+city_attack_bonus = 50
+upgrades_to = "stealth_bomber"
+
+[[units]]
+id = "jet_fighter"
+name = "Jet Fighter"
+role = "air"
+cost = 400
+strength = 68
 ranged_strength = 72
-range = 3
-moves = 3
-sight = 2
+range = 6
+moves = 1
+sight = 5
 upkeep = 7
 tech = "rocketry"
-city_attack_bonus = 100
 
-# === BUILDINGS ===
+[[units]]
+id = "stealth_bomber"
+name = "Stealth Bomber"
+role = "air"
+cost = 460
+strength = 64
+ranged_strength = 88
+range = 7
+moves = 1
+sight = 4
+upkeep = 8
+tech = "robotics"
+city_attack_bonus = 80
+
+
+# ==================== BUILDINGS (20) & WORLD WONDERS (10) ====================
+
 [[buildings]]
 id = "monument"
 name = "Monument"
@@ -470,7 +901,7 @@ culture = 2
 [[buildings]]
 id = "granary"
 name = "Granary"
-cost = 60
+cost = 55
 upkeep = 1
 food = 2
 tech = "pottery"
@@ -478,7 +909,7 @@ tech = "pottery"
 [[buildings]]
 id = "barracks"
 name = "Barracks"
-cost = 70
+cost = 65
 upkeep = 1
 supply = 1
 unit_xp = 15
@@ -487,7 +918,7 @@ tech = "bronze_working"
 [[buildings]]
 id = "library"
 name = "Library"
-cost = 75
+cost = 70
 upkeep = 1
 science = 2
 science_per_pop_half = true
@@ -496,19 +927,44 @@ tech = "writing"
 [[buildings]]
 id = "walls"
 name = "City Walls"
-cost = 75
+cost = 70
 upkeep = 0
 defense = 6
 tech = "masonry"
 
 [[buildings]]
+id = "water_mill"
+name = "Water Mill"
+cost = 75
+upkeep = 1
+food = 2
+production = 1
+tech = "wheel"
+
+[[buildings]]
 id = "market"
 name = "Market"
-cost = 100
+cost = 95
 upkeep = 0
 gold = 3
 gold_pct = 20
 tech = "currency"
+
+[[buildings]]
+id = "amphitheater"
+name = "Amphitheater"
+cost = 95
+upkeep = 1
+culture = 3
+tech = "calendar"
+
+[[buildings]]
+id = "aqueduct"
+name = "Aqueduct"
+cost = 110
+upkeep = 1
+food = 3
+tech = "engineering"
 
 [[buildings]]
 id = "workshop"
@@ -517,12 +973,20 @@ cost = 120
 upkeep = 2
 production = 3
 production_pct = 15
-tech = "engineering"
+tech = "metal_casting"
+
+[[buildings]]
+id = "castle"
+name = "Castle"
+cost = 135
+upkeep = 0
+defense = 9
+tech = "chivalry"
 
 [[buildings]]
 id = "university"
 name = "University"
-cost = 160
+cost = 155
 upkeep = 2
 science = 4
 science_pct = 30
@@ -531,16 +995,34 @@ tech = "education"
 [[buildings]]
 id = "armory"
 name = "Armory"
-cost = 160
+cost = 155
 upkeep = 2
 supply = 2
 unit_xp = 15
 tech = "military_tactics"
 
 [[buildings]]
+id = "bank"
+name = "Bank"
+cost = 175
+upkeep = 0
+gold = 5
+gold_pct = 25
+tech = "banking"
+
+[[buildings]]
+id = "public_school"
+name = "Public School"
+cost = 240
+upkeep = 2
+science = 5
+science_per_pop_half = true
+tech = "scientific_theory"
+
+[[buildings]]
 id = "factory"
 name = "Factory"
-cost = 260
+cost = 255
 upkeep = 3
 production = 5
 production_pct = 25
@@ -557,24 +1039,330 @@ defense = 8
 tech = "mobilization"
 
 [[buildings]]
+id = "broadcast_tower"
+name = "Broadcast Tower"
+cost = 310
+upkeep = 2
+culture = 6
+tech = "radio"
+
+[[buildings]]
 id = "research_lab"
 name = "Research Lab"
-cost = 360
+cost = 350
 upkeep = 3
 science = 8
 science_pct = 40
-tech = "rocketry"
+tech = "plastics"
+
+[[buildings]]
+id = "nuclear_plant"
+name = "Nuclear Plant"
+cost = 400
+upkeep = 3
+production = 8
+production_pct = 30
+tech = "nuclear_fission"
 
 [[buildings]]
 id = "space_center"
 name = "Orbital Launch Complex"
-cost = 850
+cost = 860
 upkeep = 0
-science = 10
-tech = "space_program"
+science = 12
+tech = "orbital_colonization"
 wins_science = true
 
-# === CIVILIZATIONS (22 Distinct Empires) ===
+# --- UNIQUE WORLD WONDERS (10 — only 1 civilization in the world can build each!) ---
+[[buildings]]
+id = "wonder_pyramids"
+name = "Great Pyramids"
+cost = 140
+upkeep = 0
+production = 3
+culture = 2
+tech = "masonry"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_great_library"
+name = "Great Library"
+cost = 155
+upkeep = 0
+science = 5
+culture = 2
+tech = "writing"
+is_wonder = true
+grants_free_tech = true
+
+[[buildings]]
+id = "wonder_hanging_gardens"
+name = "Hanging Gardens"
+cost = 180
+upkeep = 0
+food = 6
+culture = 2
+tech = "mathematics"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_colossus"
+name = "The Colossus"
+cost = 185
+upkeep = 0
+gold = 6
+gold_pct = 25
+culture = 2
+tech = "iron_working"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_notre_dame"
+name = "Notre Dame"
+cost = 260
+upkeep = 0
+food = 4
+culture = 5
+tech = "theology"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_machu_picchu"
+name = "Machu Picchu"
+cost = 265
+upkeep = 0
+gold = 6
+production = 3
+culture = 3
+tech = "guilds"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_taj_mahal"
+name = "Taj Mahal"
+cost = 360
+upkeep = 0
+food = 3
+production = 3
+gold = 4
+culture = 6
+tech = "printing_press"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_big_ben"
+name = "Big Ben"
+cost = 420
+upkeep = 0
+gold = 8
+gold_pct = 25
+culture = 3
+rush_buy_discount_pct = 20
+tech = "economics"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_pentagon"
+name = "The Pentagon"
+cost = 520
+upkeep = 0
+supply = 5
+unit_xp = 25
+defense = 10
+culture = 3
+tech = "combined_arms"
+is_wonder = true
+
+[[buildings]]
+id = "wonder_orbital_elevator"
+name = "Orbital Elevator"
+cost = 640
+upkeep = 0
+science = 12
+production = 8
+production_pct = 30
+culture = 6
+tech = "robotics"
+is_wonder = true
+
+
+# ==================== SOCIAL POLICIES (20 across 5 Trees) ====================
+# Trees: 0=Tradition, 1=Liberty, 2=Honor, 3=Rationalism, 4=Industry
+# Completing 12 policies (3 trees) wins a Culture Victory!
+
+[[policies]]
+id = "trad_aristocracy"
+name = "Aristocracy"
+tree = 0
+tier = 0
+desc = "+15% Building & Wonder Prod"
+prod_pct = 15
+
+[[policies]]
+id = "trad_legalism"
+name = "Legalism"
+tree = 0
+tier = 1
+desc = "+2 Culture per City"
+city_culture = 2
+
+[[policies]]
+id = "trad_landed_elite"
+name = "Landed Elite"
+tree = 0
+tier = 2
+desc = "+2 Food in every City"
+city_food = 2
+
+[[policies]]
+id = "trad_monarchy"
+name = "Monarchy"
+tree = 0
+tier = 3
+desc = "+3 Gold & +4 Defense per City"
+city_gold = 3
+city_defense = 4
+
+[[policies]]
+id = "lib_republic"
+name = "Republic"
+tree = 1
+tier = 0
+desc = "+2 Production in every City"
+city_prod = 2
+
+[[policies]]
+id = "lib_collective"
+name = "Collective Rule"
+tree = 1
+tier = 1
+desc = "+1 Food & +1 Prod per City"
+city_food = 1
+city_prod = 1
+
+[[policies]]
+id = "lib_citizenship"
+name = "Citizenship"
+tree = 1
+tier = 2
+desc = "+2 Supply Cap & +10% Prod"
+supply_bonus = 2
+prod_pct = 10
+
+[[policies]]
+id = "lib_meritocracy"
+name = "Meritocracy"
+tree = 1
+tier = 3
+desc = "+10% Science & +2 Gold/City"
+sci_pct = 10
+city_gold = 2
+
+[[policies]]
+id = "hon_warrior_code"
+name = "Warrior Code"
+tree = 2
+tier = 0
+desc = "+10% Combat Strength"
+combat_pct = 10
+
+[[policies]]
+id = "hon_discipline"
+name = "Discipline"
+tree = 2
+tier = 1
+desc = "+2 Supply Cap & +5% Combat"
+supply_bonus = 2
+combat_pct = 5
+
+[[policies]]
+id = "hon_mil_tradition"
+name = "Military Tradition"
+tree = 2
+tier = 2
+desc = "+15 Starting XP & +2 Supply"
+unit_xp = 15
+supply_bonus = 2
+
+[[policies]]
+id = "hon_prof_army"
+name = "Professional Army"
+tree = 2
+tier = 3
+desc = "+10% Combat & -15% Rush Cost"
+combat_pct = 10
+rush_discount_pct = 15
+
+[[policies]]
+id = "rat_secularism"
+name = "Secularism"
+tree = 3
+tier = 0
+desc = "+2 Science in every City"
+city_science = 2
+
+[[policies]]
+id = "rat_humanism"
+name = "Humanism"
+tree = 3
+tier = 1
+desc = "+12% Empire Science"
+sci_pct = 12
+
+[[policies]]
+id = "rat_free_thought"
+name = "Free Thought"
+tree = 3
+tier = 2
+desc = "+15% Empire Science"
+sci_pct = 15
+
+[[policies]]
+id = "rat_sci_rev"
+name = "Scientific Revolution"
+tree = 3
+tier = 3
+desc = "+4 Science/City & +15% Sci"
+city_science = 4
+sci_pct = 15
+
+[[policies]]
+id = "ind_trade_unions"
+name = "Trade Unions"
+tree = 4
+tier = 0
+desc = "+15% Empire Gold"
+gold_pct = 15
+
+[[policies]]
+id = "ind_mercantilism"
+name = "Mercantilism"
+tree = 4
+tier = 1
+desc = "-20% Gold Rush-Buy Cost"
+rush_discount_pct = 20
+
+[[policies]]
+id = "ind_entrepreneur"
+name = "Entrepreneurship"
+tree = 4
+tier = 2
+desc = "+3 Gold & +2 Prod per City"
+city_gold = 3
+city_prod = 2
+
+[[policies]]
+id = "ind_protectionism"
+name = "Protectionism"
+tree = 4
+tier = 3
+desc = "+20% Gold & +15% Prod"
+gold_pct = 20
+prod_pct = 15
+
+
+# ==================== CIVILIZATIONS (22 Distinct Empires with Unique Traits) ====================
+
 [[civs]]
 name = "Aurelia"
 color = [215, 58, 52]
@@ -582,6 +1370,10 @@ accent = [255, 214, 70]
 aggression = 70
 science_bias = 55
 expansion = 75
+trait_name = "Imperial Legions"
+trait_desc = "+15% Prod & +8% Combat"
+prod_pct = 15
+combat_pct = 8
 cities = ["Aurelia", "Valerium", "Ostia", "Ravenna", "Capua", "Verona", "Tarentum", "Mediolanum", "Aquileia", "Syracuse"]
 
 [[civs]]
@@ -591,6 +1383,10 @@ accent = [225, 240, 255]
 aggression = 80
 science_bias = 45
 expansion = 70
+trait_name = "Longship Raiders"
+trait_desc = "+12% Combat & +2 Supply"
+combat_pct = 12
+supply_bonus = 2
 cities = ["Nidaros", "Skagerrak", "Bergen", "Uppsala", "Birka", "Jomsborg", "Ribe", "Aarhus", "Tromso", "Visby"]
 
 [[civs]]
@@ -600,6 +1396,10 @@ accent = [72, 46, 130]
 aggression = 45
 science_bias = 70
 expansion = 65
+trait_name = "Monument Builders"
+trait_desc = "+20% Prod & +2 Culture/City"
+prod_pct = 20
+city_culture = 2
 cities = ["Thebes", "Memphis", "Heliopolis", "Elephantine", "Alexandria", "Pi-Ramesses", "Giza", "Byblos", "Abydos", "Edfu"]
 
 [[civs]]
@@ -609,6 +1409,10 @@ accent = [250, 238, 170]
 aggression = 55
 science_bias = 80
 expansion = 75
+trait_name = "Mandate of Scholars"
+trait_desc = "+15% Science & +1 Food/City"
+sci_pct = 15
+city_food = 1
 cities = ["Chang'an", "Luoyang", "Nanjing", "Hangzhou", "Chengdu", "Kaifeng", "Guangzhou", "Suzhou", "Xi'an", "Wuhan"]
 
 [[civs]]
@@ -618,6 +1422,10 @@ accent = [245, 245, 248]
 aggression = 60
 science_bias = 70
 expansion = 80
+trait_name = "Royal Armada"
+trait_desc = "+15% Gold & +10% Science"
+gold_pct = 15
+sci_pct = 10
 cities = ["Londinium", "York", "Canterbury", "Hastings", "Bristol", "Oxford", "Coventry", "Warwick", "Newcastle", "Dover"]
 
 [[civs]]
@@ -627,6 +1435,10 @@ accent = [245, 208, 76]
 aggression = 65
 science_bias = 65
 expansion = 65
+trait_name = "Grand Culture"
+trait_desc = "+3 Culture/City & +8% Combat"
+city_culture = 3
+combat_pct = 8
 cities = ["Lutetia", "Orleans", "Lyon", "Reims", "Tours", "Marseille", "Chartres", "Avignon", "Rouen", "Bordeaux"]
 
 [[civs]]
@@ -636,6 +1448,10 @@ accent = [240, 205, 65]
 aggression = 78
 science_bias = 72
 expansion = 68
+trait_name = "Iron Industry"
+trait_desc = "+20% Prod & +3 Supply Cap"
+prod_pct = 20
+supply_bonus = 3
 cities = ["Aachen", "Hamburg", "Munich", "Cologne", "Frankfurt", "Nuremberg", "Dresden", "Leipzig", "Bremen", "Heidelberg"]
 
 [[civs]]
@@ -645,6 +1461,10 @@ accent = [255, 255, 255]
 aggression = 60
 science_bias = 78
 expansion = 70
+trait_name = "Hellenic Academy"
+trait_desc = "+15% Science & +2 Cult/City"
+sci_pct = 15
+city_culture = 2
 cities = ["Athens", "Sparta", "Corinth", "Argos", "Knossos", "Mycenae", "Pharsalos", "Ephesus", "Rhodes", "Delphi"]
 
 [[civs]]
@@ -654,6 +1474,10 @@ accent = [255, 212, 82]
 aggression = 72
 science_bias = 62
 expansion = 78
+trait_name = "Satrap Treasury"
+trait_desc = "+20% Gold & +10% Combat"
+gold_pct = 20
+combat_pct = 10
 cities = ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Tarsus", "Gordium", "Bactra", "Sardis", "Ergili", "Dariush"]
 
 [[civs]]
@@ -663,6 +1487,10 @@ accent = [208, 38, 48]
 aggression = 76
 science_bias = 68
 expansion = 65
+trait_name = "Bushido Discipline"
+trait_desc = "+15% Combat & +10% Prod"
+combat_pct = 15
+prod_pct = 10
 cities = ["Kyoto", "Osaka", "Tokyo", "Satsuma", "Kagoshima", "Nara", "Nagoya", "Izumo", "Nagasaki", "Sapporo"]
 
 [[civs]]
@@ -672,6 +1500,10 @@ accent = [255, 166, 48]
 aggression = 40
 science_bias = 75
 expansion = 60
+trait_name = "River Abundance"
+trait_desc = "+2 Food/City & +2 Cult/City"
+city_food = 2
+city_culture = 2
 cities = ["Delhi", "Mumbai", "Vijayanagara", "Pataliputra", "Varanasi", "Agra", "Calcutta", "Lahore", "Bangalore", "Jaipur"]
 
 [[civs]]
@@ -681,6 +1513,10 @@ accent = [245, 168, 52]
 aggression = 90
 science_bias = 42
 expansion = 82
+trait_name = "Thunder Horde"
+trait_desc = "+22% Cavalry & +3 Supply"
+cavalry_pct = 22
+supply_bonus = 3
 cities = ["Karakorum", "Beshbalik", "Turfan", "Hsia", "Old Sarai", "New Sarai", "Tabriz", "Tiflis", "Otrar", "Kazan"]
 
 [[civs]]
@@ -690,6 +1526,10 @@ accent = [40, 42, 48]
 aggression = 68
 science_bias = 64
 expansion = 88
+trait_name = "Siberian Vastness"
+trait_desc = "+15% Prod & +4 Supply Cap"
+prod_pct = 15
+supply_bonus = 4
 cities = ["Novgorod", "Moscow", "Kiev", "Rostov", "Yaroslavl", "Yekaterinburg", "Yakutsk", "Vladivostok", "Smolensk", "Orenburg"]
 
 [[civs]]
@@ -699,6 +1539,10 @@ accent = [248, 224, 128]
 aggression = 58
 science_bias = 76
 expansion = 72
+trait_name = "House of Wisdom"
+trait_desc = "+18% Science & +15% Gold"
+sci_pct = 18
+gold_pct = 15
 cities = ["Baghdad", "Damascus", "Medina", "Mecca", "Cairo", "Basra", "Kufah", "Anjar", "Fustat", "Aden"]
 
 [[civs]]
@@ -708,6 +1552,10 @@ accent = [255, 232, 110]
 aggression = 62
 science_bias = 62
 expansion = 72
+trait_name = "Terrace Engineers"
+trait_desc = "+2 Food/City & +15% Prod"
+city_food = 2
+prod_pct = 15
 cities = ["Cusco", "Tiwanaku", "Machu", "Ollantaytambo", "Corihuayrachina", "Huamanga", "Vilcas", "Vilcabamba", "Vitcos", "Andahuaylas"]
 
 [[civs]]
@@ -717,6 +1565,10 @@ accent = [72, 224, 180]
 aggression = 86
 science_bias = 50
 expansion = 70
+trait_name = "Jaguar Fury"
+trait_desc = "+15% Combat & +2 Cult/City"
+combat_pct = 15
+city_culture = 2
 cities = ["Tenochtitlan", "Teotihuacan", "Tlatelolco", "Texcoco", "Tlaxcala", "Calixtlahuaca", "Xochicalco", "Tlacopan", "Atzcapotzalco", "Tzintzuntzan"]
 
 [[civs]]
@@ -726,6 +1578,10 @@ accent = [244, 240, 248]
 aggression = 64
 science_bias = 65
 expansion = 78
+trait_name = "Punic Trade League"
+trait_desc = "+28% Gold & +2 Supply Cap"
+gold_pct = 28
+supply_bonus = 2
 cities = ["Carthage", "Utica", "Hippo Regius", "Gades", "Saguntum", "Carthago Nova", "Panormus", "Lilybaeum", "Hadrumetum", "Zama"]
 
 [[civs]]
@@ -735,6 +1591,11 @@ accent = [110, 212, 238]
 aggression = 56
 science_bias = 70
 expansion = 68
+trait_name = "Imperial Bastion"
+trait_desc = "+2 Cult/City & +10% Gold/Sci"
+city_culture = 2
+gold_pct = 10
+sci_pct = 10
 cities = ["Constantinople", "Adrianople", "Nicaea", "Antioch", "Nicomedia", "Ohrid", "Trebizond", "Thessalonica", "Varna", "Cherson"]
 
 [[civs]]
@@ -744,6 +1605,10 @@ accent = [196, 36, 44]
 aggression = 66
 science_bias = 62
 expansion = 76
+trait_name = "Treasure Fleets"
+trait_desc = "+22% Gold & +10% Combat"
+gold_pct = 22
+combat_pct = 10
 cities = ["Madrid", "Barcelona", "Seville", "Cordoba", "Toledo", "Santiago", "Salamanca", "Murcia", "Valencia", "Zaragoza"]
 
 [[civs]]
@@ -753,6 +1618,10 @@ accent = [156, 32, 32]
 aggression = 48
 science_bias = 72
 expansion = 66
+trait_name = "Golden Lotus"
+trait_desc = "+2 Food & +2 Culture/City"
+city_food = 2
+city_culture = 2
 cities = ["Sukhothai", "Si Satchanalai", "Muang Saluang", "Lampang", "Phitsanulok", "Kamphaeng Phet", "Ayutthaya", "Thonburi", "Chiang Mai", "Nakhon"]
 
 [[civs]]
@@ -762,6 +1631,10 @@ accent = [242, 218, 148]
 aggression = 62
 science_bias = 66
 expansion = 70
+trait_name = "Nubian Archers"
+trait_desc = "+12% Combat & +18% Gold"
+combat_pct = 12
+gold_pct = 18
 cities = ["Meroe", "Napata", "Kerma", "El-Kurru", "Nuri", "Qasr Ibrim", "Faras", "Sedeinga", "Kawa", "Dongola"]
 
 [[civs]]
@@ -771,4 +1644,8 @@ accent = [230, 250, 252]
 aggression = 52
 science_bias = 85
 expansion = 72
+trait_name = "Sunken Archive"
+trait_desc = "+22% Science & +10% Prod"
+sci_pct = 22
+prod_pct = 10
 cities = ["Poseidonis", "Thera", "Nereus", "Triton", "Calypso", "Aegea", "Pelagia", "Okeanos", "Thalassa", "Corallia"]

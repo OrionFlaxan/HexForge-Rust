@@ -1,9 +1,9 @@
 use crate::hex::HexMapSoA;
 use crate::ruleset::Ruleset;
 use crate::types::{
-    BuildingBits, CityId, CivId, DiploStatus, GameConfig, ProductionItem, TechBits, TechId, TileId,
-    UnitFormation, UnitId, UnitKindId, VictoryState, Yields, INVALID_CITY, INVALID_TILE,
-    INVALID_UNIT, NO_CIV,
+    BuildingBits, CityId, CivId, DiploStatus, GameConfig, PolicyBits, ProductionItem, TechBits,
+    TechId, TileId, UnitFormation, UnitId, UnitKindId, VictoryState, Yields, INVALID_CITY,
+    INVALID_TILE, INVALID_UNIT, NO_CIV,
 };
 use serde::{Deserialize, Serialize};
 
@@ -257,7 +257,9 @@ pub struct CivState {
     pub gold_per_turn: i32,
     pub science_per_turn: i32,
     pub culture_per_turn: i32,
+    pub culture_stored: i32,
     pub tech_bits: TechBits,
+    pub policy_bits: PolicyBits,
     pub current_tech: Option<TechId>,
     pub tech_progress: i32,
     pub supply_used: u16,
@@ -498,6 +500,8 @@ pub struct World {
     pub civs: Vec<CivState>,
     pub diplo: DiploMatrix,
     pub vision: VisionState,
+    /// Globally constructed Unique World Wonders bitmask (each wonder may only be built once).
+    pub wonders_built: BuildingBits,
     pub victory: Option<VictoryState>,
     /// Per-civ dirty bitmask for Background Speculative AI invalidation:
     /// bit `c` is set if human actions during the current turn affected civ `c`.
@@ -751,10 +755,13 @@ impl World {
                 mix(&mut h, self.cities.prod_stored[i] as u64);
             }
         }
+        mix(&mut h, self.wonders_built);
         for c in &self.civs {
             mix(&mut h, c.alive as u64);
             mix(&mut h, c.gold as u64);
             mix(&mut h, c.tech_bits);
+            mix(&mut h, c.policy_bits as u64);
+            mix(&mut h, c.culture_stored as u64);
             mix(&mut h, c.tech_progress as u64);
             mix(&mut h, c.score as u64);
         }

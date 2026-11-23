@@ -1,7 +1,9 @@
+use crate::economy::pick_next_available_tech;
 use crate::hex::HexMapSoA;
 use crate::ruleset::Ruleset;
 use crate::types::{
-    CivId, Elevation, Feature, GameConfig, Resource, Terrain, TileId, INVALID_CITY, INVALID_TILE,
+    CivId, Elevation, Feature, GameConfig, MapType, Resource, Terrain, TileId, UnitRole,
+    INVALID_CITY, INVALID_TILE,
 };
 use crate::world::{CitySoA, CivState, DiploMatrix, UnitSoA, VisionState, World};
 use rand::{Rng, SeedableRng};
@@ -111,7 +113,7 @@ impl PerlinNoise {
     }
 }
 
-/// Generate a complete, playable world with continents, biomes, rivers, resources, and starting civs.
+/// Generate a complete, playable world honoring MapType, StartEra, Difficulty, and chosen Civ!
 pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
     let (width, height) = config.size.dimensions();
     let num_civs = (config.num_civs as usize).clamp(2, rules.civs.len());
@@ -125,7 +127,14 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
     let n = map.num_tiles;
     let mut height_vals = vec![0.0f64; n];
 
-    // 1. Seamless cylindrical elevation + continental shaping
+    // 1. Seamless cylindrical elevation shaped by MapType
+    let (freq_x, freq_y, water_frac) = match config.rules.map_type {
+        MapType::Continents => (1.35, 3.6, 0.36),
+        MapType::Pangaea => (0.95, 2.4, 0.30),
+        MapType::Archipelago => (2.65, 6.2, 0.48),
+        MapType::Fractal => (1.95, 4.9, 0.38),
+    };
+
     for r in 0..height {
         let v = (r as f64 + 0.5) / (height as f64);
         let lat = (v - 0.5).abs() * 2.0; // 0 = equator, 1 = pole
@@ -134,15 +143,21 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         for c in 0..width {
             let u = (c as f64) / (width as f64);
             let idx = map.tile_id(c, r) as usize;
-            let e = elev_noise.fbm_cylinder(u, v, 5, 1.35, 3.6) - polar_falloff + 0.10;
+            let mut e = elev_noise.fbm_cylinder(u, v, 5, freq_x, freq_y) - polar_falloff + 0.10;
+            if config.rules.map_type == MapType::Pangaea {
+                // Pull continents toward a single supercontinent centered at (u=0.5, v=0.5)
+                let dx = (u - 0.5).abs() * 2.0;
+                let dy = (v - 0.5).abs() * 2.0;
+                let radial = (dx * dx * 0.7 + dy * dy).sqrt();
+                e += (0.62 - radial) * 0.45;
+            }
             height_vals[idx] = e;
         }
     }
 
-    // Determine sea level so ~62% of tiles are land (rich Pangaea/Continents gameplay for 22 civs!)
     let mut sorted = height_vals.clone();
     sorted.sort_by(|a, b| a.total_cmp(b));
-    let sea_level = sorted[(n as f64 * 0.36) as usize];
+    let sea_level = sorted[(n as f64 * water_frac) as usize];
 
     for r in 0..height {
         let v = (r as f64 + 0.5) / (height as f64);
@@ -160,7 +175,6 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
             let moisture = moist_noise.fbm_cylinder(u, v, 4, 2.0, 4.5);
             let ridge = 1.0 - ridge_noise.fbm_cylinder(u, v, 3, 2.8, 6.0).abs();
 
-            // Elevation
             if h > 0.34 || (h > 0.20 && ridge > 0.86) {
                 map.elevation[idx] = Elevation::Mountain;
             } else if h > 0.16 || ridge > 0.78 {
@@ -169,7 +183,6 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
                 map.elevation[idx] = Elevation::Flat;
             }
 
-            // Climate biome
             let temp = 1.0 - lat * 1.15 - if map.elevation[idx] == Elevation::Hill { 0.08 } else { 0.0 };
             map.terrain[idx] = if temp < 0.12 {
                 Terrain::Snow
@@ -183,7 +196,6 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
                 Terrain::Plains
             };
 
-            // Features (not on mountains/snow/desert)
             if map.elevation[idx] != Elevation::Mountain {
                 match map.terrain[idx] {
                     Terrain::Grassland | Terrain::Plains => {
@@ -218,7 +230,7 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         }
     }
 
-    // 3. Carve rivers from highlands downhill toward coasts
+    // 3. Carve rivers downhill toward coasts
     let num_rivers = (n / 180).clamp(6, 36);
     for _ in 0..num_rivers {
         let mut cur = rng.gen_range(0..n) as TileId;
@@ -355,15 +367,15 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
                 }
             }
         }
-        if passable_neighbors >= 4 {
+        if passable_neighbors >= 3 {
             candidate_starts.push((tid, score));
         }
     }
     candidate_starts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
 
     let mut chosen_starts: Vec<TileId> = Vec::with_capacity(num_civs);
-    let mut min_dist: u16 = ((width as f32 / (num_civs as f32).sqrt()) * 0.95).clamp(5.0, 14.0) as u16;
-    while chosen_starts.len() < num_civs && min_dist >= 3 {
+    let mut min_dist: u16 = ((width as f32 / (num_civs as f32).sqrt()) * 0.92).clamp(4.0, 14.0) as u16;
+    while chosen_starts.len() < num_civs && min_dist >= 2 {
         for &(tid, _) in &candidate_starts {
             if chosen_starts.len() >= num_civs {
                 break;
@@ -375,39 +387,74 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         min_dist = min_dist.saturating_sub(1);
     }
 
-    // 7. Create CivStates, World, and spawn initial Settler + Warrior + Scout
+    // 7. Build Civ template order honoring the player's chosen civilization in slot 0
+    let mut template_order: Vec<usize> = (0..rules.civs.len()).collect();
+    let chosen_tpl = (config.rules.human_civ_template as usize).min(rules.civs.len() - 1);
+    if config.human_civ == Some(0) && chosen_tpl != 0 {
+        template_order.swap(0, chosen_tpl);
+    }
+
+    // Starting techs for configured StartEra
+    let start_era = config.rules.start_era.min(5);
+    let mut start_tech_bits = 1u64 << 0; // Agriculture always known
+    for t in &rules.techs {
+        if t.era < start_era {
+            start_tech_bits |= 1u64 << t.id;
+        }
+    }
+    let start_gold = 40 + (start_era as i32) * 90;
+    let first_tech = pick_next_available_tech(start_tech_bits, rules);
+
     let mut civs = Vec::with_capacity(num_civs);
     for c in 0..num_civs {
-        let tpl = &rules.civs[c];
+        let tpl_idx = template_order[c];
+        let tpl = &rules.civs[tpl_idx];
+        let is_human = config.human_civ == Some(c as CivId);
+        let bonus_gold = if !is_human {
+            (config.rules.difficulty as i32) * 25
+        } else {
+            0
+        };
         civs.push(CivState {
             id: c as CivId,
             name: tpl.name.clone(),
             color: tpl.color,
             accent: tpl.accent,
             alive: true,
-            is_human: config.human_civ == Some(c as CivId),
+            is_human,
             aggression: tpl.aggression,
             science_bias: tpl.science_bias,
             expansion: tpl.expansion,
-            gold: 40,
+            gold: start_gold + bonus_gold,
             gold_per_turn: 0,
             science_per_turn: 0,
             culture_per_turn: 0,
-            tech_bits: 1u64 << 0, // Start with Agriculture
-            current_tech: Some(1),
+            culture_stored: (start_era as i32) * 20,
+            tech_bits: start_tech_bits,
+            policy_bits: 0,
+            current_tech: first_tech,
             tech_progress: 0,
             supply_used: 0,
             supply_cap: 7,
             cities_founded: 0,
             capital: INVALID_CITY,
             score: 0,
-            template_idx: c as u8,
+            template_idx: tpl_idx as u8,
         });
     }
+
+    let effective_turn_limit = if config.rules.no_turn_limit {
+        u32::MAX
+    } else if config.turn_limit > 0 {
+        config.turn_limit
+    } else {
+        config.rules.speed.default_turn_limit()
+    };
 
     let mut world = World {
         config: GameConfig {
             num_civs: num_civs as u16,
+            turn_limit: effective_turn_limit,
             ..config
         },
         turn: 1,
@@ -417,27 +464,61 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         civs,
         diplo: DiploMatrix::new(num_civs),
         vision: VisionState::new(num_civs, n),
+        wonders_built: 0,
         victory: None,
         speculative_dirty_civs: u64::MAX,
     };
 
+    let start_melee = rules
+        .best_unit_for_role(start_tech_bits, UnitRole::Melee)
+        .unwrap_or(rules.warrior_kind);
+    let start_ranged = rules.best_unit_for_role(start_tech_bits, UnitRole::Ranged);
+
     for (c, &start_tile) in chosen_starts.iter().enumerate() {
         let civ_id = c as CivId;
-        // Found initial capital immediately so Turn 1 starts briskly on mobile & AI
-        world.found_city(rules, civ_id, start_tile);
-        if let Some(t) = world.find_spawn_tile(start_tile, false, false) {
-            world.spawn_unit(rules, civ_id, rules.warrior_kind, t, 0);
+        if let Some(cap_id) = world.found_city(rules, civ_id, start_tile) {
+            if start_era > 0 {
+                world.cities.pop[cap_id as usize] = 1 + (start_era as u16);
+            }
         }
         if let Some(t) = world.find_spawn_tile(start_tile, false, false) {
-            world.spawn_unit(rules, civ_id, rules.scout_kind, t, 0);
+            world.spawn_unit(rules, civ_id, start_melee, t, 0);
+        }
+        if let Some(t) = world.find_spawn_tile(start_tile, false, false) {
+            let second_kind = if start_era >= 2 {
+                start_ranged.unwrap_or(rules.scout_kind)
+            } else {
+                rules.scout_kind
+            };
+            world.spawn_unit(rules, civ_id, second_kind, t, 0);
         }
         if let Some(t) = world.find_spawn_tile(start_tile, true, false) {
             world.spawn_unit(rules, civ_id, rules.worker_kind, t, 0);
         }
-        world.vision.rebuild_civ(&world.map, &world.units, &world.cities, rules, civ_id);
+        // Higher start eras or Deity AI get an extra starting Settler
+        if start_era >= 2
+            || (!world.civs[c].is_human && config.rules.difficulty == crate::types::Difficulty::Deity)
+        {
+            if let Some(t) = world.find_spawn_tile(start_tile, true, false) {
+                world.spawn_unit(rules, civ_id, rules.settler_kind, t, 0);
+            }
+        }
+        world
+            .vision
+            .rebuild_civ(&world.map, &world.units, &world.cities, rules, civ_id);
     }
 
-    // Initial yield & supply pass
+    // If Fog of War rule is disabled, reveal the whole map for the human civ
+    if !config.rules.fog_of_war {
+        if let Some(hciv) = world.config.human_civ {
+            let base = (hciv as usize) * world.vision.words_per_civ;
+            for w in 0..world.vision.words_per_civ {
+                world.vision.explored_bits[base + w] = u64::MAX;
+                world.vision.visible_bits[base + w] = u64::MAX;
+            }
+        }
+    }
+
     crate::economy::recompute_all_civs(&mut world, rules);
     world.speculative_dirty_civs = 0;
     world

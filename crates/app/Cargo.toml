@@ -15,3 +15,5 @@ path = "src/main.rs"
 [dependencies]
 hexforge-sim = { path = "../sim" }
 macroquad = "0.4.16"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"

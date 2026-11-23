@@ -1,8 +1,8 @@
 use crate::ruleset::Ruleset;
-use crate::types::{Elevation, TileId, UnitId, INVALID_CITY, INVALID_TILE, INVALID_UNIT};
+use crate::types::{Elevation, Road, TileId, UnitId, INVALID_CITY, INVALID_TILE, INVALID_UNIT};
 use crate::world::World;
-use std::collections::BinaryHeap;
 use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 
 #[derive(Debug, Clone)]
 pub struct ReachableSet {
@@ -35,6 +35,7 @@ impl ReachableSet {
 }
 
 /// Compute all tiles reachable by `unit` within its remaining movement points this turn.
+/// For Air units, returns friendly unoccupied city tiles within rebase range (`range * 2`).
 pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> ReachableSet {
     if !world.units.is_alive(unit) {
         return ReachableSet {
@@ -53,6 +54,27 @@ pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> 
     let start = world.units.pos[ui];
     let civ = world.units.civ[ui];
     let def = &rules.units[world.units.kind[ui] as usize];
+
+    // Air units rebase between friendly cities within `2 * range`
+    if def.role.is_air() {
+        let rebase_range = (def.range as u16) * 2;
+        let mut tiles = Vec::new();
+        let mut parent = Vec::new();
+        for ci in 0..world.cities.len() {
+            if world.cities.alive[ci] && world.cities.civ[ci] == civ {
+                let cpos = world.cities.pos[ci];
+                if cpos != start
+                    && world.units.tile_mil_unit[cpos as usize] == INVALID_UNIT
+                    && world.map.distance(start, cpos) <= rebase_range
+                {
+                    tiles.push((cpos, budget));
+                    parent.push((cpos, start));
+                }
+            }
+        }
+        return ReachableSet { tiles, parent };
+    }
+
     let is_naval = def.role.is_naval();
     let is_civ = def.role.is_civilian();
     let occ = if is_civ {
@@ -92,12 +114,10 @@ pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> 
                 }
                 c
             };
-            // Cannot enter enemy city via plain movement (use attack instead)
             let cid = world.cities.tile_city[ni];
             if cid != INVALID_CITY && world.cities.civ[cid as usize] != civ {
                 continue;
             }
-            // Cannot pass through enemy combat units or end on friendly same-layer units
             let mil = world.units.tile_mil_unit[ni];
             if mil != INVALID_UNIT && world.units.civ[mil as usize] != civ {
                 continue;
@@ -105,7 +125,6 @@ pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> 
             if occ[ni] != INVALID_UNIT {
                 continue;
             }
-            // Standard Civ rule: from start with >0 moves, entering any adjacent passable tile is allowed
             let new_cost = if u == start && cost == 0 {
                 step_cost.min(budget)
             } else {
@@ -149,13 +168,20 @@ pub fn compute_reachable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> 
     }
 }
 
-/// Move `unit` step-by-step along `path` computed by `ReachableSet::reconstruct_path`.
+/// Move `unit` step-by-step along `path` (or rebase Air unit directly).
 pub fn move_unit_along_path(world: &mut World, rules: &Ruleset, unit: UnitId, path: &[TileId]) -> bool {
     if !world.units.is_alive(unit) || path.is_empty() {
         return false;
     }
     let ui = unit as usize;
-    let is_naval = rules.units[world.units.kind[ui] as usize].role.is_naval();
+    let def = &rules.units[world.units.kind[ui] as usize];
+    if def.role.is_air() {
+        let dest = *path.last().unwrap();
+        let spend = world.units.moves_halves[ui];
+        return world.move_unit_step(rules, unit, dest, spend);
+    }
+
+    let is_naval = def.role.is_naval();
     let mut moved = false;
     for &step in path {
         if !world.units.is_alive(unit) || world.units.moves_halves[unit as usize] == 0 {
@@ -181,7 +207,7 @@ pub fn move_unit_along_path(world: &mut World, rules: &Ruleset, unit: UnitId, pa
     moved
 }
 
-/// List all enemy unit tiles and enemy city tiles currently attackable by `unit`.
+/// List all enemy unit tiles and enemy city tiles currently attackable by `unit` (including Air strikes!).
 pub fn list_attackable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> Vec<TileId> {
     let mut out = Vec::new();
     if !world.units.is_alive(unit) {
@@ -198,7 +224,8 @@ pub fn list_attackable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> Ve
     let civ = world.units.civ[ui];
     let pos = world.units.pos[ui];
     let range = def.range.max(1);
-    let mut ring = Vec::with_capacity(37);
+    let is_air = def.role.is_air();
+    let mut ring = Vec::with_capacity(128);
     world.map.collect_tiles_in_radius(pos, range, &mut ring);
 
     for &t in &ring {
@@ -206,7 +233,7 @@ pub fn list_attackable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> Ve
             continue;
         }
         let dist = world.map.distance(pos, t);
-        if dist > 1 && !world.map.has_los(pos, t) {
+        if !is_air && dist > 1 && !world.map.has_los(pos, t) {
             continue;
         }
         let eu = world.units.tile_mil_unit[t as usize];
@@ -220,7 +247,7 @@ pub fn list_attackable_tiles(world: &World, rules: &Ruleset, unit: UnitId) -> Ve
     out
 }
 
-/// Compute human worker build-improvement action on its current tile.
+/// Worker builds the best terrain improvement on its current tile.
 pub fn human_worker_improve(world: &mut World, unit: UnitId) -> bool {
     if !world.units.is_alive(unit) {
         return false;
@@ -245,4 +272,31 @@ pub fn human_worker_improve(world: &mut World, unit: UnitId) -> bool {
     world.map.improvement[pi] = imp;
     world.units.moves_halves[ui] = 0;
     true
+}
+
+/// Worker builds a Road (with The Wheel) or upgrades to a Railroad (with Steam Power) on its tile!
+pub fn human_worker_build_road(world: &mut World, rules: &Ruleset, unit: UnitId) -> Option<Road> {
+    if !world.units.is_alive(unit) {
+        return None;
+    }
+    let ui = unit as usize;
+    if world.units.moves_halves[ui] == 0 {
+        return None;
+    }
+    let pos = world.units.pos[ui];
+    let pi = pos as usize;
+    if !world.map.terrain[pi].is_land() || world.map.elevation[pi] == Elevation::Mountain {
+        return None;
+    }
+    let techs = world.civs[world.units.civ[ui] as usize].tech_bits;
+    let next_road = if Ruleset::has_tech(techs, rules.railroad_tech) && world.map.road[pi] != Road::Railroad {
+        Road::Railroad
+    } else if Ruleset::has_tech(techs, rules.road_tech) && world.map.road[pi] == Road::None {
+        Road::Road
+    } else {
+        return None;
+    };
+    world.map.road[pi] = next_road;
+    world.units.moves_halves[ui] = 0;
+    Some(next_road)
 }

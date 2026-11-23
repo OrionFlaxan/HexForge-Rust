@@ -6,7 +6,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 const MAGIC: &[u8; 4] = b"HXFG";
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u32 = 2;
 
 #[derive(Debug)]
 pub enum SaveError {

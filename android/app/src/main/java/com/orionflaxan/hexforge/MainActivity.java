@@ -169,8 +169,10 @@ public class MainActivity extends Activity {
 
         try {
             Os.setenv("HEXFORGE_SAVE_DIR", getFilesDir().getAbsolutePath(), true);
+            float density = getResources().getDisplayMetrics().density;
+            Os.setenv("HEXFORGE_DPI_SCALE", String.valueOf(density), true);
         } catch (Throwable t) {
-            Log.w("HexForge", "Failed to set HEXFORGE_SAVE_DIR", t);
+            Log.w("HexForge", "Failed to set HexForge environment variables", t);
         }
 
         this.requestWindowFeature(Window.FEATURE_NO_TITLE);

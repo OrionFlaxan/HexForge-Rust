@@ -90,7 +90,7 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
                 num_siege += 1;
                 total_combat_units += 1;
             }
-            UnitRole::Melee | UnitRole::Cavalry | UnitRole::Recon | UnitRole::Naval => {
+            UnitRole::Melee | UnitRole::Cavalry | UnitRole::Recon | UnitRole::Naval | UnitRole::Air => {
                 num_melee_cav += 1;
                 total_combat_units += 1;
             }
@@ -111,14 +111,12 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         if world.diplo.is_at_war(civ, oid) {
             at_war_count += 1;
             let wt = world.diplo.war_turns(civ, oid);
-            // Offer/accept peace after long stalemates if weaker or exhausted
             if wt >= 24 && (own_strength < world.civs[other].score / 2 || wt >= 45) {
                 diplo_orders.push(DiploOrder::MakePeace(oid));
             }
         }
     }
 
-    // Consider declaring war on a neighboring rival if we have strong forces and aren't overloaded
     if at_war_count == 0 && world.turn >= 18 && total_combat_units >= 4 && !own_cities.is_empty() {
         let mut best_target: Option<(CivId, i32)> = None;
         for other in 0..world.civs.len() {
@@ -129,7 +127,6 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
             if world.diplo.peace_cooldown(civ, oid) > 0 {
                 continue;
             }
-            // Find closest enemy city distance
             let mut min_d = u16::MAX;
             for &oc in &own_cities {
                 for ec in 0..world.cities.len() {
@@ -157,14 +154,14 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         }
     }
 
-    // 3. Tech Selection (prioritize Military Tactics -> Corps, Mobilization -> Army, and Science Victory!)
+    // 3. Tech Selection
     let tech_choice = if cs.current_tech.is_some() {
         cs.current_tech
     } else {
         pick_ai_tech(cs.tech_bits, cs.science_bias, cs.aggression, rules)
     };
 
-    // 4. City Site Scoring for Settlers (builds authentic 3-6 city sprawling empires!)
+    // 4. City Site Scoring for Settlers
     let desired_cities = ((cs.expansion as usize) / 13).clamp(3, 6);
     let need_settler = own_cities.len() + (num_settlers as usize) < desired_cities
         && world.turn < 240
@@ -176,7 +173,7 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         None
     };
 
-    // 5. City Production Planning (respects Pillar 4 Supply Cap & shifts to infrastructure/science!)
+    // 5. City Production Planning (respects Supply Cap, Unique Wonders, Air Power & Science Victory)
     let at_supply_cap = cs.supply_used >= cs.supply_cap;
     let near_supply_cap = cs.supply_used + 1 >= cs.supply_cap;
     let mut planned_settlers = num_settlers;
@@ -190,14 +187,12 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         let bbits = world.cities.buildings[ci];
         let mut chosen: Option<ProductionItem> = None;
 
-        // Top priority: Space Center for Science Victory!
         if let Some(sc_b) = rules.space_center_building {
-            if rules.can_build_building(cs.tech_bits, bbits, sc_b) {
+            if rules.can_build_building(cs.tech_bits, bbits, world.wonders_built, sc_b) {
                 chosen = Some(ProductionItem::Building(sc_b));
             }
         }
 
-        // Settler if expanding
         if chosen.is_none()
             && need_settler
             && planned_settlers == 0
@@ -207,20 +202,22 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
             planned_settlers += 1;
         }
 
-        // Worker if cities lack workers
         if chosen.is_none() && (planned_workers as usize) < own_cities.len().min(4) {
             chosen = Some(ProductionItem::Unit(rules.worker_kind));
             planned_workers += 1;
         }
 
-        // Military units up to Supply Cap (Pillar 4 + Corps/Army merging keeps late-game armies elite!)
         let want_military = !at_supply_cap
             && (total_combat_units < cs.supply_cap as u32
                 && (total_combat_units < (own_cities.len() as u32 * 3 + 3)
                     || (at_war_count > 0 && !near_supply_cap)));
 
         if chosen.is_none() && want_military {
-            let role = if num_melee_cav <= num_ranged + num_siege {
+            let role = if rules.best_unit_for_role(cs.tech_bits, UnitRole::Air).is_some()
+                && (cid as usize + world.turn as usize) % 7 == 0
+            {
+                UnitRole::Air
+            } else if num_melee_cav <= num_ranged + num_siege {
                 if rules.best_unit_for_role(cs.tech_bits, UnitRole::Cavalry).is_some()
                     && (cid as usize + world.turn as usize) % 3 == 0
                 {
@@ -242,11 +239,14 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
             }
         }
 
-        // Otherwise build best available economic / science / supply building!
         if chosen.is_none() {
             let mut best_b: Option<(u8, i32)> = None;
             for b in &rules.buildings {
-                if rules.can_build_building(cs.tech_bits, bbits, b.id) {
+                if rules.can_build_building(cs.tech_bits, bbits, world.wonders_built, b.id) {
+                    // Only capitals / strong cities attempt expensive World Wonders
+                    if b.is_wonder && !world.cities.is_capital[ci] && world.cities.pop[ci] < 5 {
+                        continue;
+                    }
                     let mut val = (b.science as i32) * 18
                         + (b.science_pct as i32) * 3
                         + (b.production as i32) * 16
@@ -255,9 +255,12 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
                         + (b.gold as i32) * 10
                         + (b.supply as i32) * if near_supply_cap { 35 } else { 10 }
                         + (b.defense as i32) * if at_war_count > 0 { 12 } else { 4 }
-                        + (b.culture as i32) * 8;
+                        + (b.culture as i32) * 10;
                     if b.science_per_pop_half {
                         val += (world.cities.pop[ci] as i32) * 8;
+                    }
+                    if b.is_wonder && at_war_count == 0 {
+                        val += 60;
                     }
                     if b.wins_science {
                         val += 5000;
@@ -505,6 +508,12 @@ pub fn execute_civ_plan(world: &mut World, rules: &Ruleset, plan: &CivPlan) {
             UnitRole::Settler => execute_settler(world, rules, uid, plan),
             UnitRole::Worker => execute_worker(world, rules, uid, plan),
             UnitRole::Naval => execute_naval(world, rules, uid),
+            UnitRole::Air => {
+                // Air units launch long-range strikes ignoring LOS (and stay based safely when healthy)
+                if world.units.hp[uid as usize] >= 40 {
+                    try_local_attack(world, rules, uid);
+                }
+            }
             _ => execute_land_combat(world, rules, uid, plan),
         }
     }
@@ -746,8 +755,9 @@ fn try_local_attack(world: &mut World, rules: &Ruleset, uid: UnitId) -> bool {
         return false;
     }
     let range = def.range.max(1);
+    let is_air = def.role.is_air();
 
-    let mut ring = Vec::with_capacity(37);
+    let mut ring = Vec::with_capacity(128);
     world.map.collect_tiles_in_radius(pos, range, &mut ring);
 
     let mut best_city: Option<(CityId, i32)> = None;
@@ -758,7 +768,7 @@ fn try_local_attack(world: &mut World, rules: &Ruleset, uid: UnitId) -> bool {
             continue;
         }
         let dist = world.map.distance(pos, t);
-        if dist > 1 && !world.map.has_los(pos, t) {
+        if !is_air && dist > 1 && !world.map.has_los(pos, t) {
             continue;
         }
         let cid = world.cities.tile_city[t as usize];

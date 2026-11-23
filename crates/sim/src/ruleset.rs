@@ -1,4 +1,4 @@
-use crate::types::{BuildingId, TechBits, TechId, UnitKindId, UnitRole};
+use crate::types::{BuildingBits, BuildingId, GameSpeed, PolicyId, TechBits, TechId, UnitKindId, UnitRole};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -12,9 +12,13 @@ pub struct TechDef {
     pub era: u8,
     pub cost: i32,
     pub prereq_bits: TechBits,
+    pub unlocks_roads: bool,
+    pub unlocks_embark: bool,
     pub unlocks_corps: bool,
     pub unlocks_army: bool,
     pub unlocks_ocean_embark: bool,
+    pub unlocks_railroads: bool,
+    pub unlocks_flight: bool,
     pub unlocks_science_victory: bool,
 }
 
@@ -55,8 +59,34 @@ pub struct BuildingDef {
     pub defense: i16,
     pub supply: i16,
     pub unit_xp: i16,
+    pub rush_buy_discount_pct: i16,
     pub tech: Option<TechId>,
+    pub is_wonder: bool,
+    pub grants_free_tech: bool,
     pub wins_science: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct PolicyDef {
+    pub id: PolicyId,
+    pub key: String,
+    pub name: String,
+    pub tree: u8,
+    pub tier: u8,
+    pub desc: String,
+    pub prod_pct: i16,
+    pub sci_pct: i16,
+    pub gold_pct: i16,
+    pub combat_pct: i16,
+    pub city_food: i16,
+    pub city_prod: i16,
+    pub city_gold: i16,
+    pub city_science: i16,
+    pub city_culture: i16,
+    pub city_defense: i16,
+    pub supply_bonus: i16,
+    pub unit_xp: i16,
+    pub rush_discount_pct: i16,
 }
 
 #[derive(Debug, Clone)]
@@ -67,19 +97,34 @@ pub struct CivDef {
     pub aggression: u8,
     pub science_bias: u8,
     pub expansion: u8,
+    pub trait_name: String,
+    pub trait_desc: String,
+    pub prod_pct: i16,
+    pub sci_pct: i16,
+    pub gold_pct: i16,
+    pub combat_pct: i16,
+    pub cavalry_pct: i16,
+    pub city_food: i16,
+    pub city_culture: i16,
+    pub supply_bonus: i16,
     pub cities: Vec<String>,
 }
 
-/// Compiled, integer-indexed ruleset — zero string hashing during simulation.
+/// Compiled, integer-indexed 6-Era ruleset — zero string hashing during simulation.
 #[derive(Debug, Clone)]
 pub struct Ruleset {
     pub techs: Vec<TechDef>,
     pub units: Vec<UnitDef>,
     pub buildings: Vec<BuildingDef>,
+    pub policies: Vec<PolicyDef>,
     pub civs: Vec<CivDef>,
+    pub road_tech: TechId,
+    pub embark_tech: TechId,
     pub corps_tech: TechId,
     pub army_tech: TechId,
     pub ocean_embark_tech: TechId,
+    pub railroad_tech: TechId,
+    pub flight_tech: TechId,
     pub science_victory_tech: TechId,
     pub settler_kind: UnitKindId,
     pub worker_kind: UnitKindId,
@@ -93,6 +138,8 @@ struct RawRuleset {
     techs: Vec<RawTech>,
     units: Vec<RawUnit>,
     buildings: Vec<RawBuilding>,
+    #[serde(default)]
+    policies: Vec<RawPolicy>,
     civs: Vec<RawCiv>,
 }
 
@@ -105,11 +152,19 @@ struct RawTech {
     #[serde(default)]
     prereqs: Vec<String>,
     #[serde(default)]
+    unlocks_roads: bool,
+    #[serde(default)]
+    unlocks_embark: bool,
+    #[serde(default)]
     unlocks_corps: bool,
     #[serde(default)]
     unlocks_army: bool,
     #[serde(default)]
     unlocks_ocean_embark: bool,
+    #[serde(default)]
+    unlocks_railroads: bool,
+    #[serde(default)]
+    unlocks_flight: bool,
     #[serde(default)]
     unlocks_science_victory: bool,
 }
@@ -162,9 +217,50 @@ struct RawBuilding {
     supply: i16,
     #[serde(default)]
     unit_xp: i16,
+    #[serde(default)]
+    rush_buy_discount_pct: i16,
     tech: Option<String>,
     #[serde(default)]
+    is_wonder: bool,
+    #[serde(default)]
+    grants_free_tech: bool,
+    #[serde(default)]
     wins_science: bool,
+}
+
+#[derive(Deserialize)]
+struct RawPolicy {
+    id: String,
+    name: String,
+    tree: u8,
+    tier: u8,
+    desc: String,
+    #[serde(default)]
+    prod_pct: i16,
+    #[serde(default)]
+    sci_pct: i16,
+    #[serde(default)]
+    gold_pct: i16,
+    #[serde(default)]
+    combat_pct: i16,
+    #[serde(default)]
+    city_food: i16,
+    #[serde(default)]
+    city_prod: i16,
+    #[serde(default)]
+    city_gold: i16,
+    #[serde(default)]
+    city_science: i16,
+    #[serde(default)]
+    city_culture: i16,
+    #[serde(default)]
+    city_defense: i16,
+    #[serde(default)]
+    supply_bonus: i16,
+    #[serde(default)]
+    unit_xp: i16,
+    #[serde(default)]
+    rush_discount_pct: i16,
 }
 
 #[derive(Deserialize)]
@@ -175,6 +271,26 @@ struct RawCiv {
     aggression: u8,
     science_bias: u8,
     expansion: u8,
+    #[serde(default)]
+    trait_name: String,
+    #[serde(default)]
+    trait_desc: String,
+    #[serde(default)]
+    prod_pct: i16,
+    #[serde(default)]
+    sci_pct: i16,
+    #[serde(default)]
+    gold_pct: i16,
+    #[serde(default)]
+    combat_pct: i16,
+    #[serde(default)]
+    cavalry_pct: i16,
+    #[serde(default)]
+    city_food: i16,
+    #[serde(default)]
+    city_culture: i16,
+    #[serde(default)]
+    supply_bonus: i16,
     cities: Vec<String>,
 }
 
@@ -188,6 +304,7 @@ fn parse_role(s: &str) -> UnitRole {
         "cavalry" => UnitRole::Cavalry,
         "siege" => UnitRole::Siege,
         "naval" => UnitRole::Naval,
+        "air" => UnitRole::Air,
         other => panic!("Unknown unit role in ruleset: {other}"),
     }
 }
@@ -201,6 +318,7 @@ impl Ruleset {
         let raw: RawRuleset = toml::from_str(src)?;
         assert!(raw.techs.len() <= 64, "TechBits supports up to 64 techs");
         assert!(raw.buildings.len() <= 64, "BuildingBits supports up to 64 buildings");
+        assert!(raw.policies.len() <= 32, "PolicyBits supports up to 32 policies");
 
         let mut tech_map = HashMap::with_capacity(raw.techs.len());
         for (i, t) in raw.techs.iter().enumerate() {
@@ -208,9 +326,13 @@ impl Ruleset {
         }
 
         let mut techs = Vec::with_capacity(raw.techs.len());
+        let mut road_tech = 0;
+        let mut embark_tech = 0;
         let mut corps_tech = 0;
         let mut army_tech = 0;
         let mut ocean_embark_tech = 0;
+        let mut railroad_tech = 0;
+        let mut flight_tech = 0;
         let mut science_victory_tech = 0;
 
         for (i, t) in raw.techs.iter().enumerate() {
@@ -222,6 +344,12 @@ impl Ruleset {
                 prereq_bits |= 1u64 << pid;
             }
             let id = i as TechId;
+            if t.unlocks_roads {
+                road_tech = id;
+            }
+            if t.unlocks_embark {
+                embark_tech = id;
+            }
             if t.unlocks_corps {
                 corps_tech = id;
             }
@@ -230,6 +358,12 @@ impl Ruleset {
             }
             if t.unlocks_ocean_embark {
                 ocean_embark_tech = id;
+            }
+            if t.unlocks_railroads {
+                railroad_tech = id;
+            }
+            if t.unlocks_flight {
+                flight_tech = id;
             }
             if t.unlocks_science_victory {
                 science_victory_tech = id;
@@ -241,9 +375,13 @@ impl Ruleset {
                 era: t.era,
                 cost: t.cost,
                 prereq_bits,
+                unlocks_roads: t.unlocks_roads,
+                unlocks_embark: t.unlocks_embark,
                 unlocks_corps: t.unlocks_corps,
                 unlocks_army: t.unlocks_army,
                 unlocks_ocean_embark: t.unlocks_ocean_embark,
+                unlocks_railroads: t.unlocks_railroads,
+                unlocks_flight: t.unlocks_flight,
                 unlocks_science_victory: t.unlocks_science_victory,
             });
         }
@@ -326,10 +464,40 @@ impl Ruleset {
                 defense: b.defense,
                 supply: b.supply,
                 unit_xp: b.unit_xp,
+                rush_buy_discount_pct: b.rush_buy_discount_pct,
                 tech,
+                is_wonder: b.is_wonder,
+                grants_free_tech: b.grants_free_tech,
                 wins_science: b.wins_science,
             });
         }
+
+        let policies = raw
+            .policies
+            .into_iter()
+            .enumerate()
+            .map(|(i, p)| PolicyDef {
+                id: i as PolicyId,
+                key: p.id,
+                name: p.name,
+                tree: p.tree,
+                tier: p.tier,
+                desc: p.desc,
+                prod_pct: p.prod_pct,
+                sci_pct: p.sci_pct,
+                gold_pct: p.gold_pct,
+                combat_pct: p.combat_pct,
+                city_food: p.city_food,
+                city_prod: p.city_prod,
+                city_gold: p.city_gold,
+                city_science: p.city_science,
+                city_culture: p.city_culture,
+                city_defense: p.city_defense,
+                supply_bonus: p.supply_bonus,
+                unit_xp: p.unit_xp,
+                rush_discount_pct: p.rush_discount_pct,
+            })
+            .collect();
 
         let civs = raw
             .civs
@@ -341,6 +509,16 @@ impl Ruleset {
                 aggression: c.aggression,
                 science_bias: c.science_bias,
                 expansion: c.expansion,
+                trait_name: c.trait_name,
+                trait_desc: c.trait_desc,
+                prod_pct: c.prod_pct,
+                sci_pct: c.sci_pct,
+                gold_pct: c.gold_pct,
+                combat_pct: c.combat_pct,
+                cavalry_pct: c.cavalry_pct,
+                city_food: c.city_food,
+                city_culture: c.city_culture,
+                supply_bonus: c.supply_bonus,
                 cities: c.cities,
             })
             .collect();
@@ -349,10 +527,15 @@ impl Ruleset {
             techs,
             units,
             buildings,
+            policies,
             civs,
+            road_tech,
+            embark_tech,
             corps_tech,
             army_tech,
             ocean_embark_tech,
+            railroad_tech,
+            flight_tech,
             science_victory_tech,
             settler_kind,
             worker_kind,
@@ -374,13 +557,17 @@ impl Ruleset {
     }
 
     #[inline]
+    pub fn scaled_cost(base_cost: i32, speed: GameSpeed) -> i32 {
+        ((base_cost * speed.cost_pct()) / 100).max(5)
+    }
+
+    #[inline]
     pub fn can_train_unit(&self, tech_bits: TechBits, kind: UnitKindId) -> bool {
         let def = &self.units[kind as usize];
         let unlocked = def.tech.map_or(true, |t| Self::has_tech(tech_bits, t));
         if !unlocked {
             return false;
         }
-        // Obsolete if upgrade unit is already unlocked
         if let Some(upg) = def.upgrades_to {
             if self.units[upg as usize]
                 .tech
@@ -393,13 +580,22 @@ impl Ruleset {
     }
 
     #[inline]
-    pub fn can_build_building(&self, tech_bits: TechBits, built_bits: u64, b: BuildingId) -> bool {
-        if (built_bits & (1u64 << b)) != 0 {
+    pub fn can_build_building(
+        &self,
+        tech_bits: TechBits,
+        built_bits: BuildingBits,
+        wonders_built: BuildingBits,
+        b: BuildingId,
+    ) -> bool {
+        let mask = 1u64 << b;
+        if (built_bits & mask) != 0 {
             return false;
         }
-        self.buildings[b as usize]
-            .tech
-            .map_or(true, |t| Self::has_tech(tech_bits, t))
+        let def = &self.buildings[b as usize];
+        if def.is_wonder && (wonders_built & mask) != 0 {
+            return false;
+        }
+        def.tech.map_or(true, |t| Self::has_tech(tech_bits, t))
     }
 
     #[inline]
@@ -419,7 +615,20 @@ impl Ruleset {
             0 => "Ancient",
             1 => "Classical",
             2 => "Medieval",
+            3 => "Renaissance",
+            4 => "Industrial",
             _ => "Modern",
+        }
+    }
+
+    #[inline]
+    pub const fn policy_tree_name(tree: u8) -> &'static str {
+        match tree {
+            0 => "Tradition",
+            1 => "Liberty",
+            2 => "Honor",
+            3 => "Rationalism",
+            _ => "Industry",
         }
     }
 

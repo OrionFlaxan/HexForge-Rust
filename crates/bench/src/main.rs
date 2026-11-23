@@ -73,6 +73,7 @@ fn main() {
         seed,
         human_civ: if speculative { Some(0) } else { None },
         turn_limit: turns + 50,
+        rules: hexforge_sim::types::GameRules::default(),
     };
     let mut world = generate_world(cfg, &rules);
     let mapgen_ms = t_gen.elapsed().as_secs_f64() * 1000.0;

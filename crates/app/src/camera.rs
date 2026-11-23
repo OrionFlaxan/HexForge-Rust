@@ -1,25 +1,21 @@
+use crate::settings::UiMetrics;
 use hexforge_sim::hex::HexMapSoA;
 use hexforge_sim::types::TileId;
 use macroquad::prelude::*;
 
 /// Smooth cylindrical hex map camera supporting both Android multi-touch (drag + pinch)
-/// and Desktop mouse/keyboard (drag, wheel zoom, WASD/arrows).
+/// and Desktop mouse/keyboard (drag, wheel zoom, WASD/arrows), calibrated to device DPI.
 pub struct MapCamera {
-    /// World-space center (hex radius = 1.0 in world units).
     pub center_x: f32,
     pub center_y: f32,
-    /// Pixels per world unit (i.e., rendered hex outer radius in logical screen pixels).
     pub zoom: f32,
     pub min_zoom: f32,
     pub max_zoom: f32,
 
-    // Pointer / single-touch drag state
     dragging: bool,
-    drag_start_screen: Vec2,
     last_screen: Vec2,
     drag_dist: f32,
 
-    // Pinch-to-zoom state
     prev_pinch_dist: Option<f32>,
     prev_pinch_mid: Option<Vec2>,
 }
@@ -29,20 +25,27 @@ pub struct InputEvent {
 }
 
 impl MapCamera {
-    pub fn new(map: &HexMapSoA) -> Self {
+    pub fn new(map: &HexMapSoA, ui: &UiMetrics) -> Self {
+        let s = ui.scale;
         Self {
             center_x: map.world_width() * 0.5,
             center_y: map.world_height() * 0.5,
-            zoom: 34.0,
-            min_zoom: 10.0,
-            max_zoom: 88.0,
+            zoom: (34.0 * s).clamp(24.0, 96.0),
+            min_zoom: (10.0 * s).clamp(10.0, 28.0),
+            max_zoom: (92.0 * s).clamp(80.0, 220.0),
             dragging: false,
-            drag_start_screen: Vec2::ZERO,
             last_screen: Vec2::ZERO,
             drag_dist: 0.0,
             prev_pinch_dist: None,
             prev_pinch_mid: None,
         }
+    }
+
+    pub fn sync_scale_bounds(&mut self, ui: &UiMetrics) {
+        let s = ui.scale;
+        self.min_zoom = (10.0 * s).clamp(10.0, 28.0);
+        self.max_zoom = (92.0 * s).clamp(80.0, 220.0);
+        self.zoom = self.zoom.clamp(self.min_zoom, self.max_zoom);
     }
 
     pub fn focus_tile(&mut self, map: &HexMapSoA, tile: TileId) {
@@ -70,12 +73,11 @@ impl MapCamera {
         map.world_pos_to_tile(wx, wy)
     }
 
-    /// Update camera from touch + mouse + keyboard input.
-    /// `ui_blocks_map` suppresses map pan/tap when a modal overlay or HUD bar consumed the pointer.
-    pub fn update(&mut self, map: &HexMapSoA, ui_blocks_map: bool, dt: f32) -> InputEvent {
+    pub fn update(&mut self, map: &HexMapSoA, ui: &UiMetrics, ui_blocks_map: bool, dt: f32) -> InputEvent {
         let mut tapped_screen = None;
-        let sw = screen_width();
-        let sh = screen_height();
+        self.sync_scale_bounds(ui);
+        let sw = ui.sw;
+        let sh = ui.sh;
         let ww = map.world_width();
         let wh = map.world_height();
 
@@ -86,9 +88,11 @@ impl MapCamera {
             return InputEvent { tapped_screen };
         }
 
+        let drag_start_thresh = ui.dp(6.0);
+        let tap_max_dist = ui.dp(14.0);
+
         let active_touches = touches();
         if active_touches.len() >= 2 {
-            // Multi-touch pinch-to-zoom + 2-finger pan
             self.dragging = false;
             let p0 = active_touches[0].position;
             let p1 = active_touches[1].position;
@@ -113,30 +117,26 @@ impl MapCamera {
             self.prev_pinch_dist = None;
             self.prev_pinch_mid = None;
 
-            // Unified single-finger / left-mouse drag & tap handling
-            // macroquad maps primary touch to MouseButton::Left as well
             let mpos: Vec2 = mouse_position().into();
             if is_mouse_button_pressed(MouseButton::Left) {
                 self.dragging = true;
-                self.drag_start_screen = mpos;
                 self.last_screen = mpos;
                 self.drag_dist = 0.0;
             } else if is_mouse_button_down(MouseButton::Left) && self.dragging {
                 let delta = mpos - self.last_screen;
                 self.drag_dist += delta.length();
-                if self.drag_dist > 8.0 {
+                if self.drag_dist > drag_start_thresh {
                     self.center_x -= delta.x / self.zoom;
                     self.center_y -= delta.y / self.zoom;
                 }
                 self.last_screen = mpos;
             } else if is_mouse_button_released(MouseButton::Left) && self.dragging {
                 self.dragging = false;
-                if self.drag_dist <= 16.0 {
+                if self.drag_dist <= tap_max_dist {
                     tapped_screen = Some(mpos);
                 }
             }
 
-            // Mouse wheel zoom (desktop)
             let (_, wy_wheel) = mouse_wheel();
             if wy_wheel.abs() > 0.01 {
                 let factor = if wy_wheel > 0.0 { 1.14 } else { 1.0 / 1.14 };
@@ -148,8 +148,7 @@ impl MapCamera {
             }
         }
 
-        // Keyboard pan & zoom (desktop)
-        let pan_speed = (420.0 / self.zoom) * dt;
+        let pan_speed = (420.0 * ui.scale / self.zoom) * dt;
         if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
             self.center_y -= pan_speed;
         }
@@ -169,7 +168,6 @@ impl MapCamera {
             self.zoom = (self.zoom * (1.0 - 1.5 * dt)).clamp(self.min_zoom, self.max_zoom);
         }
 
-        // Cylindrical X wrap & clamped Y
         self.center_x = self.center_x.rem_euclid(ww);
         self.center_y = self.center_y.clamp(-1.0, wh + 1.0);
 

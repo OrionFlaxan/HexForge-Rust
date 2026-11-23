@@ -1,22 +1,30 @@
 pub mod camera;
+pub mod codex;
 pub mod hud;
 pub mod renderer;
+pub mod settings;
 pub mod storage;
 
 use crate::camera::MapCamera;
-use crate::hud::{draw_game_hud, draw_title_screen, ActiveModal, HudAction, TitleAction, BOTTOM_BAR_H};
+use crate::hud::{
+    draw_game_hud, draw_title_screen, ActiveModal, GameUiState, HudAction, TitleAction,
+    TitleUiState,
+};
 use crate::renderer::{render_and_interact_minimap, render_world};
+use crate::settings::{AppOptions, UiMetrics};
 use crate::storage::{has_save, load_slot, save_slot};
 use hexforge_sim::ai::speculative::SpeculativePlanner;
 use hexforge_sim::combat::{attack_city, attack_unit, merge_units};
 use hexforge_sim::economy::{recompute_all_civs, rush_buy};
 use hexforge_sim::mapgen::generate_world;
 use hexforge_sim::pathing::{
-    compute_reachable_tiles, human_worker_improve, list_attackable_tiles, move_unit_along_path, ReachableSet,
+    compute_reachable_tiles, human_worker_build_road, human_worker_improve, list_attackable_tiles,
+    move_unit_along_path, ReachableSet,
 };
+use hexforge_sim::policies::adopt_policy;
 use hexforge_sim::ruleset::Ruleset;
 use hexforge_sim::types::{
-    DiploStatus, GameConfig, TileId, UnitId, UnitRole, INVALID_CITY, INVALID_UNIT,
+    DiploStatus, GameConfig, Road, TileId, UnitId, UnitRole, INVALID_CITY, INVALID_UNIT,
 };
 use hexforge_sim::world::World;
 use hexforge_sim::{end_human_turn, step_full_turn, TurnMetrics};
@@ -25,7 +33,7 @@ use std::sync::Arc;
 
 pub fn window_conf() -> Conf {
     Conf {
-        window_title: "HexForge-Rust — Pure-Rust 4X".to_owned(),
+        window_title: "HexForge-Rust v0.3 — Pure-Rust 4X".to_owned(),
         window_width: 1280,
         window_height: 760,
         high_dpi: true,
@@ -34,12 +42,10 @@ pub fn window_conf() -> Conf {
     }
 }
 
-/// Desktop launcher invoked by `crates/app/src/main.rs`.
 pub fn launch_desktop() {
     macroquad::Window::from_config(window_conf(), run_game());
 }
 
-/// Android entry point invoked directly by `miniquad`'s `Java_quad_1native_QuadNative_activityOnCreate`.
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub extern "C" fn quad_main() {
@@ -54,19 +60,18 @@ struct Session {
     selected_unit: Option<UnitId>,
     reachable: ReachableSet,
     attackable: Vec<TileId>,
-    modal: ActiveModal,
+    gui: GameUiState,
     last_metrics: TurnMetrics,
     reveal_all: bool,
     auto_spectate: bool,
     auto_timer: f32,
     toast: String,
     toast_timer: f32,
-    city_scroll: usize,
 }
 
 impl Session {
-    fn new(world: World, rules: &Arc<Ruleset>) -> Self {
-        let mut cam = MapCamera::new(&world.map);
+    fn new(world: World, rules: &Arc<Ruleset>, ui: &UiMetrics) -> Self {
+        let mut cam = MapCamera::new(&world.map, ui);
         let viewer = world.config.human_civ;
         if let Some(hciv) = viewer {
             let cap = world.civs[hciv as usize].capital;
@@ -78,6 +83,9 @@ impl Session {
         if viewer.is_some() {
             planner.start_precompute(world.clone(), Arc::clone(rules));
         }
+        let reveal_all = viewer.is_none() || !world.config.rules.fog_of_war;
+        let mut gui = GameUiState::default();
+        gui.tech_era_tab = world.config.rules.start_era.min(5);
         Self {
             world,
             cam,
@@ -89,14 +97,13 @@ impl Session {
                 parent: Vec::new(),
             },
             attackable: Vec::new(),
-            modal: ActiveModal::None,
+            gui,
             last_metrics: TurnMetrics::default(),
-            reveal_all: viewer.is_none(),
+            reveal_all,
             auto_spectate: false,
             auto_timer: 0.0,
             toast: String::new(),
             toast_timer: 0.0,
-            city_scroll: 0,
         }
     }
 
@@ -148,13 +155,16 @@ impl Session {
         self.set_toast("All units moved — tap END TURN!");
     }
 
-    fn do_end_turn(&mut self, rules: &Arc<Ruleset>) {
+    fn do_end_turn(&mut self, rules: &Arc<Ruleset>, options: &AppOptions) {
         if self.world.config.human_civ.is_some() {
             self.last_metrics = end_human_turn(&mut self.world, rules, Some(&self.planner));
-            // Immediately launch next turn's background speculative AI pre-computation!
             self.planner.start_precompute(self.world.clone(), Arc::clone(rules));
-            if self.world.turn % 10 == 0 {
+            if options.autosave_interval > 0 && self.world.turn % options.autosave_interval == 0 {
                 let _ = save_slot(&self.world, "autosave");
+            }
+            if options.auto_next_unit {
+                self.select_next_ready_unit(rules);
+                return;
             }
         } else {
             self.last_metrics = step_full_turn(&mut self.world, rules);
@@ -165,12 +175,15 @@ impl Session {
 
 pub async fn run_game() {
     let rules = Arc::new(Ruleset::load_default());
+    let mut options = AppOptions::load();
     let mut setup = GameConfig::default();
+    let mut title_ui = TitleUiState::default();
     let mut title_msg = String::new();
     let mut session: Option<Session> = None;
 
     loop {
         let dt = get_frame_time().min(0.1);
+        let ui = UiMetrics::compute(&options);
 
         if let Some(ref mut sess) = session {
             clear_background(Color::from_rgba(12, 16, 24, 255));
@@ -182,48 +195,46 @@ pub async fn run_game() {
                 }
             }
 
-            // Spectator auto-play stepper
             if sess.auto_spectate && sess.world.victory.is_none() {
                 sess.auto_timer += dt;
                 if sess.auto_timer >= 0.08 {
                     sess.auto_timer = 0.0;
-                    sess.do_end_turn(&rules);
+                    sess.do_end_turn(&rules, &options);
                 }
             }
 
-            // Desktop keyboard shortcuts when no modal is open
-            if sess.modal == ActiveModal::None && sess.world.victory.is_none() {
+            if sess.gui.modal.0 == ActiveModal::None && sess.world.victory.is_none() {
                 if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
-                    sess.do_end_turn(&rules);
+                    sess.do_end_turn(&rules, &options);
                 } else if is_key_pressed(KeyCode::Tab) {
                     sess.select_next_ready_unit(&rules);
                 } else if is_key_pressed(KeyCode::Escape) {
-                    sess.modal = ActiveModal::Menu;
+                    sess.gui.modal.0 = ActiveModal::Menu;
                 }
             } else if is_key_pressed(KeyCode::Escape) {
-                sess.modal = ActiveModal::None;
+                sess.gui.modal.0 = ActiveModal::None;
             }
 
             let viewer = sess.world.config.human_civ;
-            let sw = screen_width();
-            let sh = screen_height();
-            let minimap_w = (sw * 0.20).clamp(112.0, 210.0);
-            let minimap_h = (minimap_w * 0.56).clamp(64.0, 124.0);
+            let minimap_w = (ui.sw * if ui.is_portrait { 0.30 } else { 0.19 }).clamp(ui.dp(102.0), ui.dp(200.0));
+            let minimap_h = (minimap_w * 0.56).clamp(ui.dp(58.0), ui.dp(116.0));
             let minimap_rect = Rect::new(
-                sw - minimap_w - 10.0,
-                sh - BOTTOM_BAR_H - minimap_h - 10.0,
+                ui.sw - minimap_w - ui.dp(8.0),
+                ui.sh - ui.bottom_bar_h - minimap_h - ui.dp(8.0),
                 minimap_w,
                 minimap_h,
             );
             let (mx, my) = mouse_position();
             let pointer_in_minimap =
-                sess.modal == ActiveModal::None && minimap_rect.contains(vec2(mx, my));
+                sess.gui.modal.0 == ActiveModal::None && minimap_rect.contains(vec2(mx, my));
 
             // 1. Render Hex Map World
             render_world(
                 &sess.world,
                 &rules,
                 &sess.cam,
+                &ui,
+                &options,
                 viewer,
                 sess.reveal_all,
                 sess.selected_tile,
@@ -233,10 +244,11 @@ pub async fn run_game() {
             );
 
             // 2. Render & Handle Minimap Tap
-            if sess.modal == ActiveModal::None && sess.world.victory.is_none() {
+            if sess.gui.modal.0 == ActiveModal::None && sess.world.victory.is_none() {
                 if let Some(mtile) = render_and_interact_minimap(
                     &sess.world,
                     &sess.cam,
+                    &ui,
                     viewer,
                     sess.reveal_all,
                     minimap_rect,
@@ -248,26 +260,27 @@ pub async fn run_game() {
             // 3. Render HUD & Modals
             let spec_ready = viewer.is_some() && sess.planner.is_ready();
             let (hud_action, ui_consumed) = draw_game_hud(
+                &ui,
+                &mut options,
                 &sess.world,
                 &rules,
                 viewer,
                 sess.selected_tile,
                 sess.selected_unit,
-                sess.modal,
+                &mut sess.gui,
                 sess.last_metrics,
                 spec_ready,
                 sess.auto_spectate,
                 &sess.toast,
-                &mut sess.city_scroll,
             );
 
             // 4. Update Camera & Handle Map Tap
             let input = sess
                 .cam
-                .update(&sess.world.map, ui_consumed || pointer_in_minimap, dt);
+                .update(&sess.world.map, &ui, ui_consumed || pointer_in_minimap, dt);
 
             if let Some(tap) = input.tapped_screen {
-                if let Some(tid) = sess.cam.screen_to_tile(&sess.world.map, tap.x, tap.y, sw, sh) {
+                if let Some(tid) = sess.cam.screen_to_tile(&sess.world.map, tap.x, tap.y, ui.sw, ui.sh) {
                     handle_map_tap(sess, &rules, tid);
                 }
             }
@@ -276,7 +289,7 @@ pub async fn run_game() {
             let mut back_to_title = false;
             match hud_action {
                 HudAction::None => {}
-                HudAction::EndTurn => sess.do_end_turn(&rules),
+                HudAction::EndTurn => sess.do_end_turn(&rules, &options),
                 HudAction::NextUnit => sess.select_next_ready_unit(&rules),
                 HudAction::MergeUnit(u1, u2) => {
                     if merge_units(&mut sess.world, &rules, u1, u2) {
@@ -298,7 +311,7 @@ pub async fn run_game() {
                             sess.refresh_selection_overlays(&rules);
                             sess.set_toast("New city founded!");
                         } else {
-                            sess.set_toast("Cannot found city here (too close to another city)");
+                            sess.set_toast("Too close to another city (need 3+ hexes)");
                         }
                     }
                 }
@@ -309,6 +322,16 @@ pub async fn run_game() {
                         sess.set_toast("Tile improved!");
                     }
                 }
+                HudAction::BuildRoad(uid) => {
+                    if let Some(kind) = human_worker_build_road(&mut sess.world, &rules, uid) {
+                        sess.refresh_selection_overlays(&rules);
+                        sess.set_toast(match kind {
+                            Road::Railroad => "Railroad built!",
+                            Road::Road => "Road built!",
+                            Road::None => "",
+                        });
+                    }
+                }
                 HudAction::FortifyUnit(uid) => {
                     if sess.world.units.is_alive(uid) {
                         sess.world.units.fortified[uid as usize] = true;
@@ -317,26 +340,45 @@ pub async fn run_game() {
                         sess.set_toast("Unit fortified (+20% Defense & Heal)");
                     }
                 }
-                HudAction::OpenModal(m) => sess.modal = m,
-                HudAction::CloseModal => sess.modal = ActiveModal::None,
+                HudAction::OpenModal(m) => {
+                    if m == ActiveModal::Codex {
+                        sess.gui.codex.scroll.reset();
+                    } else if m == ActiveModal::Diplo {
+                        sess.gui.diplo_scroll.reset();
+                    } else if m == ActiveModal::Tech {
+                        if let Some(hciv) = viewer {
+                            sess.gui.tech_era_tab = rules.era_for_techs(sess.world.civs[hciv as usize].tech_bits);
+                        }
+                    }
+                    sess.gui.modal.0 = m;
+                }
+                HudAction::CloseModal => sess.gui.modal.0 = ActiveModal::None,
                 HudAction::SetProduction(cid, item) => {
                     if sess.world.cities.is_alive(cid) {
                         sess.world.cities.producing[cid as usize] = Some(item);
-                        sess.modal = ActiveModal::None;
+                        sess.gui.modal.0 = ActiveModal::None;
                         sess.set_toast("Production updated");
                     }
                 }
                 HudAction::RushBuy(cid, item) => {
                     if rush_buy(&mut sess.world, &rules, cid, item) {
-                        sess.modal = ActiveModal::None;
+                        sess.gui.modal.0 = ActiveModal::None;
                         sess.set_toast("Purchased with Gold!");
                     }
                 }
                 HudAction::SelectTech(tid) => {
                     if let Some(hciv) = viewer {
                         sess.world.civs[hciv as usize].current_tech = Some(tid);
-                        sess.modal = ActiveModal::None;
+                        sess.gui.modal.0 = ActiveModal::None;
                         sess.set_toast(format!("Researching {}", rules.techs[tid as usize].name));
+                    }
+                }
+                HudAction::AdoptPolicy(pid) => {
+                    if let Some(hciv) = viewer {
+                        if adopt_policy(&mut sess.world, &rules, hciv, pid) {
+                            recompute_all_civs(&mut sess.world, &rules);
+                            sess.set_toast(format!("Adopted policy: {}!", rules.policies[pid as usize].name));
+                        }
                     }
                 }
                 HudAction::DeclareWar(other) => {
@@ -358,20 +400,18 @@ pub async fn run_game() {
                         Ok(sz) => sess.set_toast(format!("Saved ({:.1} KB)", sz as f32 / 1024.0)),
                         Err(e) => sess.set_toast(format!("Save error: {e}")),
                     }
-                    sess.modal = ActiveModal::None;
+                    sess.gui.modal.0 = ActiveModal::None;
                 }
-                HudAction::LoadGame => {
-                    match load_slot("autosave") {
-                        Ok(w) => {
-                            *sess = Session::new(w, &rules);
-                            sess.set_toast("Loaded saved game!");
-                        }
-                        Err(e) => {
-                            sess.set_toast(format!("Load failed: {e}"));
-                            sess.modal = ActiveModal::None;
-                        }
+                HudAction::LoadGame => match load_slot("autosave") {
+                    Ok(w) => {
+                        *sess = Session::new(w, &rules, &ui);
+                        sess.set_toast("Loaded saved game!");
                     }
-                }
+                    Err(e) => {
+                        sess.set_toast(format!("Load failed: {e}"));
+                        sess.gui.modal.0 = ActiveModal::None;
+                    }
+                },
                 HudAction::FastForward(n) => {
                     let t0 = get_time();
                     for _ in 0..n {
@@ -385,7 +425,7 @@ pub async fn run_game() {
                         sess.planner.start_precompute(sess.world.clone(), Arc::clone(&rules));
                     }
                     sess.refresh_selection_overlays(&rules);
-                    sess.modal = ActiveModal::None;
+                    sess.gui.modal.0 = ActiveModal::None;
                     sess.set_toast(format!(
                         "Simulated {} turns in {:.0}ms ({:.1}ms/turn)!",
                         n,
@@ -395,10 +435,13 @@ pub async fn run_game() {
                 }
                 HudAction::ToggleRevealMap => {
                     sess.reveal_all = !sess.reveal_all;
-                    sess.modal = ActiveModal::None;
+                    sess.gui.modal.0 = ActiveModal::None;
                 }
                 HudAction::ToggleAutoSpectate => {
                     sess.auto_spectate = !sess.auto_spectate;
+                }
+                HudAction::OptionsChanged => {
+                    options.save();
                 }
                 HudAction::ReturnToTitle => {
                     let _ = save_slot(&sess.world, "autosave");
@@ -410,17 +453,28 @@ pub async fn run_game() {
                 session = None;
             }
         } else {
-            let act = draw_title_screen(&mut setup, has_save("autosave"), &title_msg);
+            let act = draw_title_screen(
+                &ui,
+                &rules,
+                &mut setup,
+                &mut options,
+                &mut title_ui,
+                has_save("autosave"),
+                &title_msg,
+            );
             match act {
                 TitleAction::None => {}
+                TitleAction::OptionsChanged => {
+                    options.save();
+                }
                 TitleAction::StartGame(cfg) => {
                     let world = generate_world(cfg, &rules);
-                    session = Some(Session::new(world, &rules));
+                    session = Some(Session::new(world, &rules, &ui));
                     title_msg.clear();
                 }
                 TitleAction::ContinueAutosave => match load_slot("autosave") {
                     Ok(world) => {
-                        session = Some(Session::new(world, &rules));
+                        session = Some(Session::new(world, &rules, &ui));
                         title_msg.clear();
                     }
                     Err(e) => {
@@ -437,7 +491,6 @@ pub async fn run_game() {
 fn handle_map_tap(sess: &mut Session, rules: &Ruleset, tid: TileId) {
     let viewer = sess.world.config.human_civ;
 
-    // 1. If a human unit is selected and user tapped an attackable enemy -> ATTACK!
     if let (Some(hciv), Some(uid)) = (viewer, sess.selected_unit) {
         if sess.world.units.is_alive(uid) && sess.world.units.civ[uid as usize] == hciv {
             if sess.attackable.contains(&tid) {
@@ -464,15 +517,15 @@ fn handle_map_tap(sess: &mut Session, rules: &Ruleset, tid: TileId) {
                 }
             }
 
-            // 2. If user tapped a reachable movement tile -> MOVE!
             if sess.reachable.contains(tid).is_some() {
                 let start = sess.world.units.pos[uid as usize];
                 let path = sess.reachable.reconstruct_path(start, tid);
                 if move_unit_along_path(&mut sess.world, rules, uid, &path) {
-                    // Auto-hint for settler or worker
                     let role = rules.units[sess.world.units.kind[uid as usize] as usize].role;
                     if role == UnitRole::Settler {
                         sess.set_toast("Tap FOUND CITY below to settle here");
+                    } else if role == UnitRole::Air {
+                        sess.set_toast("Air unit rebased to friendly city!");
                     }
                     sess.refresh_selection_overlays(rules);
                     return;
@@ -481,7 +534,6 @@ fn handle_map_tap(sess: &mut Session, rules: &Ruleset, tid: TileId) {
         }
     }
 
-    // 3. Otherwise select unit (alternating mil/civ if both present on tile) or city/tile!
     let ti = tid as usize;
     let mil = sess.world.units.tile_mil_unit[ti];
     let civ_u = sess.world.units.tile_civ_unit[ti];
@@ -500,14 +552,13 @@ fn handle_map_tap(sess: &mut Session, rules: &Ruleset, tid: TileId) {
         (false, false) => None,
     };
 
-    // If tapping already-selected own city with no unit selected, open City Management modal directly!
     if picked_unit.is_none()
         && city != INVALID_CITY
         && sess.selected_tile == Some(tid)
         && viewer == Some(sess.world.cities.civ[city as usize])
     {
-        sess.city_scroll = 0;
-        sess.modal = ActiveModal::City(city);
+        sess.gui.city_scroll.reset();
+        sess.gui.modal.0 = ActiveModal::City(city);
         return;
     }
 
