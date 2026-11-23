@@ -1,0 +1,9 @@
+[package]
+name = "hexforge-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+hexforge-sim = { path = "../sim" }
+rayon = "1.10"

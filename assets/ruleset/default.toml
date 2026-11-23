@@ -1,0 +1,774 @@
+# HexForge-Rust Default 4-Era Ruleset
+# Compiled into dense integer-indexed arrays and u64 bitsets at engine startup.
+
+[[techs]]
+id = "agriculture"
+name = "Agriculture"
+era = 0
+cost = 15
+prereqs = []
+
+[[techs]]
+id = "mining"
+name = "Mining"
+era = 0
+cost = 35
+prereqs = ["agriculture"]
+
+[[techs]]
+id = "archery"
+name = "Archery"
+era = 0
+cost = 35
+prereqs = ["agriculture"]
+
+[[techs]]
+id = "animal_husbandry"
+name = "Animal Husbandry"
+era = 0
+cost = 35
+prereqs = ["agriculture"]
+
+[[techs]]
+id = "pottery"
+name = "Pottery"
+era = 0
+cost = 35
+prereqs = ["agriculture"]
+
+[[techs]]
+id = "sailing"
+name = "Sailing"
+era = 0
+cost = 45
+prereqs = ["pottery"]
+
+[[techs]]
+id = "bronze_working"
+name = "Bronze Working"
+era = 1
+cost = 65
+prereqs = ["mining"]
+
+[[techs]]
+id = "writing"
+name = "Writing"
+era = 1
+cost = 65
+prereqs = ["pottery"]
+
+[[techs]]
+id = "wheel"
+name = "The Wheel"
+era = 1
+cost = 65
+prereqs = ["animal_husbandry", "archery"]
+
+[[techs]]
+id = "masonry"
+name = "Masonry"
+era = 1
+cost = 70
+prereqs = ["mining"]
+
+[[techs]]
+id = "iron_working"
+name = "Iron Working"
+era = 1
+cost = 105
+prereqs = ["bronze_working"]
+
+[[techs]]
+id = "mathematics"
+name = "Mathematics"
+era = 1
+cost = 105
+prereqs = ["wheel", "writing"]
+
+[[techs]]
+id = "currency"
+name = "Currency"
+era = 1
+cost = 110
+prereqs = ["writing"]
+
+[[techs]]
+id = "horseback_riding"
+name = "Horseback Riding"
+era = 1
+cost = 110
+prereqs = ["wheel"]
+
+[[techs]]
+id = "engineering"
+name = "Engineering"
+era = 2
+cost = 175
+prereqs = ["mathematics", "masonry"]
+
+[[techs]]
+id = "chivalry"
+name = "Chivalry"
+era = 2
+cost = 195
+prereqs = ["horseback_riding", "currency"]
+
+[[techs]]
+id = "military_tactics"
+name = "Military Tactics"
+era = 2
+cost = 210
+prereqs = ["iron_working", "engineering"]
+unlocks_corps = true
+
+[[techs]]
+id = "education"
+name = "Education"
+era = 2
+cost = 210
+prereqs = ["currency", "writing"]
+
+[[techs]]
+id = "gunpowder"
+name = "Gunpowder"
+era = 2
+cost = 280
+prereqs = ["military_tactics", "chivalry"]
+
+[[techs]]
+id = "navigation"
+name = "Navigation"
+era = 2
+cost = 260
+prereqs = ["sailing", "education"]
+unlocks_ocean_embark = true
+
+[[techs]]
+id = "industrialization"
+name = "Industrialization"
+era = 3
+cost = 420
+prereqs = ["gunpowder", "education"]
+
+[[techs]]
+id = "rifling"
+name = "Rifling"
+era = 3
+cost = 440
+prereqs = ["gunpowder"]
+
+[[techs]]
+id = "mobilization"
+name = "Mobilization"
+era = 3
+cost = 520
+prereqs = ["industrialization", "rifling"]
+unlocks_army = true
+
+[[techs]]
+id = "combined_arms"
+name = "Combined Arms"
+era = 3
+cost = 680
+prereqs = ["mobilization", "navigation"]
+
+[[techs]]
+id = "rocketry"
+name = "Rocketry"
+era = 3
+cost = 860
+prereqs = ["combined_arms"]
+
+[[techs]]
+id = "space_program"
+name = "Space Program"
+era = 3
+cost = 1100
+prereqs = ["rocketry"]
+unlocks_science_victory = true
+
+# === UNITS ===
+[[units]]
+id = "settler"
+name = "Settler"
+role = "settler"
+cost = 80
+strength = 0
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 0
+
+[[units]]
+id = "worker"
+name = "Worker"
+role = "worker"
+cost = 55
+strength = 0
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+
+[[units]]
+id = "scout"
+name = "Scout"
+role = "recon"
+cost = 30
+strength = 6
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 3
+upkeep = 1
+
+[[units]]
+id = "warrior"
+name = "Warrior"
+role = "melee"
+cost = 40
+strength = 9
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+upgrades_to = "swordsman"
+
+[[units]]
+id = "archer"
+name = "Archer"
+role = "ranged"
+cost = 45
+strength = 5
+ranged_strength = 8
+range = 2
+moves = 2
+sight = 2
+upkeep = 1
+tech = "archery"
+upgrades_to = "crossbowman"
+
+[[units]]
+id = "spearman"
+name = "Spearman"
+role = "melee"
+cost = 55
+strength = 12
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+tech = "bronze_working"
+upgrades_to = "musketman"
+
+[[units]]
+id = "galley"
+name = "Galley"
+role = "naval"
+cost = 55
+strength = 11
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 2
+upkeep = 1
+tech = "sailing"
+upgrades_to = "frigate"
+
+[[units]]
+id = "swordsman"
+name = "Swordsman"
+role = "melee"
+cost = 75
+strength = 16
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "iron_working"
+upgrades_to = "musketman"
+
+[[units]]
+id = "horseman"
+name = "Horseman"
+role = "cavalry"
+cost = 75
+strength = 15
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 2
+upkeep = 2
+tech = "horseback_riding"
+upgrades_to = "knight"
+
+[[units]]
+id = "catapult"
+name = "Catapult"
+role = "siege"
+cost = 80
+strength = 7
+ranged_strength = 14
+range = 2
+moves = 2
+sight = 2
+upkeep = 2
+tech = "mathematics"
+city_attack_bonus = 60
+upgrades_to = "artillery"
+
+[[units]]
+id = "crossbowman"
+name = "Crossbowman"
+role = "ranged"
+cost = 110
+strength = 13
+ranged_strength = 19
+range = 2
+moves = 2
+sight = 2
+upkeep = 2
+tech = "engineering"
+upgrades_to = "artillery"
+
+[[units]]
+id = "knight"
+name = "Knight"
+role = "cavalry"
+cost = 125
+strength = 23
+ranged_strength = 0
+range = 0
+moves = 4
+sight = 2
+upkeep = 3
+tech = "chivalry"
+upgrades_to = "tank"
+
+[[units]]
+id = "musketman"
+name = "Musketman"
+role = "melee"
+cost = 140
+strength = 26
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 3
+tech = "gunpowder"
+upgrades_to = "rifleman"
+
+[[units]]
+id = "frigate"
+name = "Frigate"
+role = "naval"
+cost = 155
+strength = 24
+ranged_strength = 28
+range = 2
+moves = 5
+sight = 3
+upkeep = 3
+tech = "navigation"
+upgrades_to = "battleship"
+
+[[units]]
+id = "rifleman"
+name = "Rifleman"
+role = "melee"
+cost = 200
+strength = 36
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 4
+tech = "rifling"
+upgrades_to = "infantry"
+
+[[units]]
+id = "artillery"
+name = "Artillery"
+role = "siege"
+cost = 230
+strength = 22
+ranged_strength = 38
+range = 3
+moves = 2
+sight = 2
+upkeep = 4
+tech = "industrialization"
+city_attack_bonus = 80
+
+[[units]]
+id = "infantry"
+name = "Infantry"
+role = "melee"
+cost = 290
+strength = 54
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 5
+tech = "mobilization"
+
+[[units]]
+id = "tank"
+name = "Modern Armor"
+role = "cavalry"
+cost = 340
+strength = 66
+ranged_strength = 0
+range = 0
+moves = 5
+sight = 3
+upkeep = 6
+tech = "combined_arms"
+
+[[units]]
+id = "battleship"
+name = "Battleship"
+role = "naval"
+cost = 350
+strength = 58
+ranged_strength = 64
+range = 3
+moves = 5
+sight = 3
+upkeep = 6
+tech = "combined_arms"
+
+[[units]]
+id = "rocket_artillery"
+name = "Rocket Artillery"
+role = "siege"
+cost = 380
+strength = 42
+ranged_strength = 72
+range = 3
+moves = 3
+sight = 2
+upkeep = 7
+tech = "rocketry"
+city_attack_bonus = 100
+
+# === BUILDINGS ===
+[[buildings]]
+id = "monument"
+name = "Monument"
+cost = 40
+upkeep = 1
+culture = 2
+
+[[buildings]]
+id = "granary"
+name = "Granary"
+cost = 60
+upkeep = 1
+food = 2
+tech = "pottery"
+
+[[buildings]]
+id = "barracks"
+name = "Barracks"
+cost = 70
+upkeep = 1
+supply = 1
+unit_xp = 15
+tech = "bronze_working"
+
+[[buildings]]
+id = "library"
+name = "Library"
+cost = 75
+upkeep = 1
+science = 2
+science_per_pop_half = true
+tech = "writing"
+
+[[buildings]]
+id = "walls"
+name = "City Walls"
+cost = 75
+upkeep = 0
+defense = 6
+tech = "masonry"
+
+[[buildings]]
+id = "market"
+name = "Market"
+cost = 100
+upkeep = 0
+gold = 3
+gold_pct = 20
+tech = "currency"
+
+[[buildings]]
+id = "workshop"
+name = "Workshop"
+cost = 120
+upkeep = 2
+production = 3
+production_pct = 15
+tech = "engineering"
+
+[[buildings]]
+id = "university"
+name = "University"
+cost = 160
+upkeep = 2
+science = 4
+science_pct = 30
+tech = "education"
+
+[[buildings]]
+id = "armory"
+name = "Armory"
+cost = 160
+upkeep = 2
+supply = 2
+unit_xp = 15
+tech = "military_tactics"
+
+[[buildings]]
+id = "factory"
+name = "Factory"
+cost = 260
+upkeep = 3
+production = 5
+production_pct = 25
+tech = "industrialization"
+
+[[buildings]]
+id = "military_academy"
+name = "Military Academy"
+cost = 280
+upkeep = 3
+supply = 3
+unit_xp = 25
+defense = 8
+tech = "mobilization"
+
+[[buildings]]
+id = "research_lab"
+name = "Research Lab"
+cost = 360
+upkeep = 3
+science = 8
+science_pct = 40
+tech = "rocketry"
+
+[[buildings]]
+id = "space_center"
+name = "Orbital Launch Complex"
+cost = 850
+upkeep = 0
+science = 10
+tech = "space_program"
+wins_science = true
+
+# === CIVILIZATIONS (22 Distinct Empires) ===
+[[civs]]
+name = "Aurelia"
+color = [215, 58, 52]
+accent = [255, 214, 70]
+aggression = 70
+science_bias = 55
+expansion = 75
+cities = ["Aurelia", "Valerium", "Ostia", "Ravenna", "Capua", "Verona", "Tarentum", "Mediolanum", "Aquileia", "Syracuse"]
+
+[[civs]]
+name = "Valhalla"
+color = [45, 138, 224]
+accent = [225, 240, 255]
+aggression = 80
+science_bias = 45
+expansion = 70
+cities = ["Nidaros", "Skagerrak", "Bergen", "Uppsala", "Birka", "Jomsborg", "Ribe", "Aarhus", "Tromso", "Visby"]
+
+[[civs]]
+name = "Kemet"
+color = [235, 195, 52]
+accent = [72, 46, 130]
+aggression = 45
+science_bias = 70
+expansion = 65
+cities = ["Thebes", "Memphis", "Heliopolis", "Elephantine", "Alexandria", "Pi-Ramesses", "Giza", "Byblos", "Abydos", "Edfu"]
+
+[[civs]]
+name = "Celestia"
+color = [46, 168, 114]
+accent = [250, 238, 170]
+aggression = 55
+science_bias = 80
+expansion = 75
+cities = ["Chang'an", "Luoyang", "Nanjing", "Hangzhou", "Chengdu", "Kaifeng", "Guangzhou", "Suzhou", "Xi'an", "Wuhan"]
+
+[[civs]]
+name = "Avalon"
+color = [180, 42, 74]
+accent = [245, 245, 248]
+aggression = 60
+science_bias = 70
+expansion = 80
+cities = ["Londinium", "York", "Canterbury", "Hastings", "Bristol", "Oxford", "Coventry", "Warwick", "Newcastle", "Dover"]
+
+[[civs]]
+name = "Gallia"
+color = [56, 98, 214]
+accent = [245, 208, 76]
+aggression = 65
+science_bias = 65
+expansion = 65
+cities = ["Lutetia", "Orleans", "Lyon", "Reims", "Tours", "Marseille", "Chartres", "Avignon", "Rouen", "Bordeaux"]
+
+[[civs]]
+name = "Teutonia"
+color = [108, 118, 132]
+accent = [240, 205, 65]
+aggression = 78
+science_bias = 72
+expansion = 68
+cities = ["Aachen", "Hamburg", "Munich", "Cologne", "Frankfurt", "Nuremberg", "Dresden", "Leipzig", "Bremen", "Heidelberg"]
+
+[[civs]]
+name = "Hellenia"
+color = [102, 188, 240]
+accent = [255, 255, 255]
+aggression = 60
+science_bias = 78
+expansion = 70
+cities = ["Athens", "Sparta", "Corinth", "Argos", "Knossos", "Mycenae", "Pharsalos", "Ephesus", "Rhodes", "Delphi"]
+
+[[civs]]
+name = "Persia"
+color = [196, 62, 118]
+accent = [255, 212, 82]
+aggression = 72
+science_bias = 62
+expansion = 78
+cities = ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Tarsus", "Gordium", "Bactra", "Sardis", "Ergili", "Dariush"]
+
+[[civs]]
+name = "Yamato"
+color = [235, 235, 240]
+accent = [208, 38, 48]
+aggression = 76
+science_bias = 68
+expansion = 65
+cities = ["Kyoto", "Osaka", "Tokyo", "Satsuma", "Kagoshima", "Nara", "Nagoya", "Izumo", "Nagasaki", "Sapporo"]
+
+[[civs]]
+name = "Indra"
+color = [62, 182, 74]
+accent = [255, 166, 48]
+aggression = 40
+science_bias = 75
+expansion = 60
+cities = ["Delhi", "Mumbai", "Vijayanagara", "Pataliputra", "Varanasi", "Agra", "Calcutta", "Lahore", "Bangalore", "Jaipur"]
+
+[[civs]]
+name = "Steppe"
+color = [142, 86, 42]
+accent = [245, 168, 52]
+aggression = 90
+science_bias = 42
+expansion = 82
+cities = ["Karakorum", "Beshbalik", "Turfan", "Hsia", "Old Sarai", "New Sarai", "Tabriz", "Tiflis", "Otrar", "Kazan"]
+
+[[civs]]
+name = "Rus"
+color = [212, 164, 48]
+accent = [40, 42, 48]
+aggression = 68
+science_bias = 64
+expansion = 88
+cities = ["Novgorod", "Moscow", "Kiev", "Rostov", "Yaroslavl", "Yekaterinburg", "Yakutsk", "Vladivostok", "Smolensk", "Orenburg"]
+
+[[civs]]
+name = "Al-Qasr"
+color = [32, 130, 82]
+accent = [248, 224, 128]
+aggression = 58
+science_bias = 76
+expansion = 72
+cities = ["Baghdad", "Damascus", "Medina", "Mecca", "Cairo", "Basra", "Kufah", "Anjar", "Fustat", "Aden"]
+
+[[civs]]
+name = "Solis"
+color = [232, 118, 38]
+accent = [255, 232, 110]
+aggression = 62
+science_bias = 62
+expansion = 72
+cities = ["Cusco", "Tiwanaku", "Machu", "Ollantaytambo", "Corihuayrachina", "Huamanga", "Vilcas", "Vilcabamba", "Vitcos", "Andahuaylas"]
+
+[[civs]]
+name = "Tenoch"
+color = [178, 52, 46]
+accent = [72, 224, 180]
+aggression = 86
+science_bias = 50
+expansion = 70
+cities = ["Tenochtitlan", "Teotihuacan", "Tlatelolco", "Texcoco", "Tlaxcala", "Calixtlahuaca", "Xochicalco", "Tlacopan", "Atzcapotzalco", "Tzintzuntzan"]
+
+[[civs]]
+name = "Carthago"
+color = [124, 70, 178]
+accent = [244, 240, 248]
+aggression = 64
+science_bias = 65
+expansion = 78
+cities = ["Carthage", "Utica", "Hippo Regius", "Gades", "Saguntum", "Carthago Nova", "Panormus", "Lilybaeum", "Hadrumetum", "Zama"]
+
+[[civs]]
+name = "Byzantia"
+color = [146, 56, 152]
+accent = [110, 212, 238]
+aggression = 56
+science_bias = 70
+expansion = 68
+cities = ["Constantinople", "Adrianople", "Nicaea", "Antioch", "Nicomedia", "Ohrid", "Trebizond", "Thessalonica", "Varna", "Cherson"]
+
+[[civs]]
+name = "Iberia"
+color = [222, 152, 44]
+accent = [196, 36, 44]
+aggression = 66
+science_bias = 62
+expansion = 76
+cities = ["Madrid", "Barcelona", "Seville", "Cordoba", "Toledo", "Santiago", "Salamanca", "Murcia", "Valencia", "Zaragoza"]
+
+[[civs]]
+name = "Siam"
+color = [224, 186, 108]
+accent = [156, 32, 32]
+aggression = 48
+science_bias = 72
+expansion = 66
+cities = ["Sukhothai", "Si Satchanalai", "Muang Saluang", "Lampang", "Phitsanulok", "Kamphaeng Phet", "Ayutthaya", "Thonburi", "Chiang Mai", "Nakhon"]
+
+[[civs]]
+name = "Kush"
+color = [198, 112, 62]
+accent = [242, 218, 148]
+aggression = 62
+science_bias = 66
+expansion = 70
+cities = ["Meroe", "Napata", "Kerma", "El-Kurru", "Nuri", "Qasr Ibrim", "Faras", "Sedeinga", "Kawa", "Dongola"]
+
+[[civs]]
+name = "Atlantis"
+color = [44, 184, 188]
+accent = [230, 250, 252]
+aggression = 52
+science_bias = 85
+expansion = 72
+cities = ["Poseidonis", "Thera", "Nereus", "Triton", "Calypso", "Aegea", "Pelagia", "Okeanos", "Thalassa", "Corallia"]

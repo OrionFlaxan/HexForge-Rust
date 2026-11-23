@@ -1,0 +1,17 @@
+[package]
+name = "hexforge-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "hexforge_app"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "hexforge"
+path = "src/main.rs"
+
+[dependencies]
+hexforge-sim = { path = "../sim" }
+macroquad = "0.4.16"
