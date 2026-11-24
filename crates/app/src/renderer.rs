@@ -91,6 +91,9 @@ pub fn render_world(
     selected_unit: Option<UnitId>,
     reachable: &ReachableSet,
     attackable: &[TileId],
+    pending_order_tile: Option<TileId>,
+    pending_path: &[TileId],
+    pending_is_attack: bool,
 ) {
     let sw = ui.sw;
     let sh = ui.sh;
@@ -619,7 +622,8 @@ pub fn render_world(
                 }
             }
 
-            if world.units.hp[u] < 100 && r_dp >= 13.0 {
+            let has_hp_bar = world.units.hp[u] < 100 && r_dp >= 13.0;
+            if has_hp_bar {
                 let bw = badge_r * 1.9;
                 let bh = ui.dp(3.5);
                 let frac = (world.units.hp[u].max(0) as f32) / 100.0;
@@ -632,6 +636,102 @@ pub fn render_world(
                 };
                 draw_rectangle(sx - bw * 0.5, sy + badge_r + ui.dp(2.0), bw, bh, Color::from_rgba(18, 20, 24, 230));
                 draw_rectangle(sx - bw * 0.5, sy + badge_r + ui.dp(2.0), bw * frac, bh, hcol);
+            }
+
+            // Compact 3-letter Civ badge below foreign units when zoomed in so empires are recognizable at a glance
+            if let Some(vc) = viewer_civ {
+                if vc != uciv && r_dp >= 20.0 {
+                    let cname = &world.civs[uciv as usize].name;
+                    let tag: String = cname.chars().take(3).collect::<String>().to_uppercase();
+                    let at_war = world.diplo.is_at_war(vc, uciv);
+                    let tfs = ui.fs(10.0);
+                    let td = measure_text(&tag, None, tfs as u16, 1.0);
+                    let pw = td.width + ui.dp(8.0);
+                    let ph = tfs + ui.dp(3.5);
+                    let py = sy + badge_r + if has_hp_bar { ui.dp(7.0) } else { ui.dp(2.5) };
+                    let px = sx - pw * 0.5;
+                    let bdr = if at_war { Color::from_rgba(248, 72, 68, 255) } else { cc };
+                    draw_rectangle(px, py, pw, ph, Color::from_rgba(12, 16, 24, 228));
+                    draw_rectangle_lines(px, py, pw, ph, ui.dp(1.2), bdr);
+                    draw_text(
+                        &tag,
+                        px + ui.dp(4.0),
+                        py + ph - ui.dp(2.5),
+                        tfs,
+                        if at_war { Color::from_rgba(255, 160, 150, 255) } else { WHITE },
+                    );
+                }
+            }
+        }
+    }
+
+    // PASS 4: Pending Double-Tap Move / Attack Preview Path & Target Reticle
+    if let Some(target_tid) = pending_order_tile {
+        let primary = if pending_is_attack {
+            Color::from_rgba(255, 86, 78, 250)
+        } else {
+            Color::from_rgba(255, 220, 74, 250)
+        };
+        let fill = if pending_is_attack {
+            Color::from_rgba(255, 68, 60, 88)
+        } else {
+            Color::from_rgba(255, 218, 72, 72)
+        };
+
+        for wrap in wrap_min..=wrap_max {
+            let x_offset = (wrap as f32) * ww;
+
+            // Path trail segments & waypoint dots
+            if pending_path.len() >= 2 {
+                for seg in pending_path.windows(2) {
+                    let (ax_w, ay_w) = map.tile_world_pos(seg[0]);
+                    let (bx_w, by_w) = map.tile_world_pos(seg[1]);
+                    if (bx_w - ax_w).abs() > ww * 0.5 {
+                        continue;
+                    }
+                    let (ax, ay) = cam.world_to_screen(ax_w + x_offset, ay_w, sw, sh);
+                    let (bx, by) = cam.world_to_screen(bx_w + x_offset, by_w, sw, sh);
+                    if (ax < -r && bx < -r) || (ax > sw + r && bx > sw + r) {
+                        continue;
+                    }
+                    draw_line(ax, ay, bx, by, ui.dp(4.8), Color::from_rgba(10, 14, 22, 210));
+                    draw_line(ax, ay, bx, by, ui.dp(2.8), primary);
+                }
+                for &wp in &pending_path[1..pending_path.len() - 1] {
+                    let (wx, wy) = map.tile_world_pos(wp);
+                    let (sx, sy) = cam.world_to_screen(wx + x_offset, wy, sw, sh);
+                    if sx >= -r && sx <= sw + r && sy >= -r && sy <= sh + r {
+                        let dr = ui.dp(4.0);
+                        if is_pixel {
+                            draw_rectangle(sx - dr, sy - dr, dr * 2.0, dr * 2.0, primary);
+                        } else {
+                            draw_circle(sx, sy, dr, primary);
+                        }
+                    }
+                }
+            }
+
+            // Target hex highlight + floating confirmation badge
+            let (tx_w, ty_w) = map.tile_world_pos(target_tid);
+            let (tx, ty) = cam.world_to_screen(tx_w + x_offset, ty_w, sw, sh);
+            if tx >= -r * 2.0 && tx <= sw + r * 2.0 && ty >= -r * 2.0 && ty <= sh + r * 2.0 {
+                draw_filled_hex(tx, ty, r * 0.94, fill);
+                draw_hex_outline(tx, ty, r * 0.96, ui.dp(3.4), primary);
+                draw_hex_outline(tx, ty, r * 0.72, ui.dp(2.0), WHITE);
+
+                let badge_lbl = if pending_is_attack {
+                    "TAP AGAIN: ATTACK"
+                } else {
+                    "TAP AGAIN: MOVE"
+                };
+                let bfs = ui.fs(11.5);
+                let bd = measure_text(badge_lbl, None, bfs as u16, 1.0);
+                let bw = bd.width + ui.dp(14.0);
+                let bh = bfs + ui.dp(7.0);
+                let bx = (tx - bw * 0.5).clamp(ui.dp(6.0), sw - bw - ui.dp(6.0));
+                let by = (ty - r * 1.10 - bh * 0.5).max(ui.top_bar_h + ui.dp(4.0));
+                draw_panel(ui, Rect::new(bx, by, bw, bh), Color::from_rgba(16, 20, 32, 240), primary);
+                draw_text(badge_lbl, bx + ui.dp(7.0), by + bh - ui.dp(4.5), bfs, primary);
             }
         }
     }

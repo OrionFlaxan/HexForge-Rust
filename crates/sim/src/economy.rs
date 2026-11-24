@@ -6,9 +6,9 @@ use crate::policies::{
 };
 use crate::ruleset::Ruleset;
 use crate::types::{
-    BuildingBits, CityId, CivId, Elevation, Feature, Improvement, PendingChoice, ProductionItem,
-    Resource, Road, TechBits, Terrain, TileId, VictoryKind, VictoryState, Yields, INVALID_TILE,
-    NO_CIV, VICTORY_DOMINATION, VICTORY_SCIENCE, VICTORY_SCORE,
+    BuildingBits, CityId, CityProcess, CivId, Elevation, Feature, Improvement, PendingChoice,
+    ProductionItem, Resource, Road, TechBits, Terrain, TileId, VictoryKind, VictoryState, Yields,
+    INVALID_TILE, NO_CIV, VICTORY_DOMINATION, VICTORY_SCIENCE, VICTORY_SCORE,
 };
 use crate::world::World;
 
@@ -205,8 +205,42 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
         total.prod = ((total.prod as i32) * (100 - penalty) / 100).max(1) as i16;
     }
 
+    // Continuous City Focus / Process yield conversion
+    if let Some(ProductionItem::Process(proc)) = world.cities.producing[ci] {
+        let (bf, _bp_bank, bg, bs, bc) =
+            city_process_bonus(total.prod, world.cities.prod_stored[ci], proc);
+        total.food += bf;
+        total.gold += bg;
+        total.science += bs;
+        total.culture += bc;
+    }
+
     total.food -= (pop as i16) * 2;
     total
+}
+
+/// Compute per-turn conversion yields `(food, prod_banked, gold, science, culture)` for a `CityProcess`.
+/// Shared by simulation and UI so live previews always match exact turn-end behavior.
+#[inline]
+pub fn city_process_bonus(prod: i16, prod_stored: i32, proc: CityProcess) -> (i16, i32, i16, i16, i16) {
+    let p = prod.max(1) as i32;
+    match proc {
+        CityProcess::FoodFocus => (((p * 40) / 100).max(2) as i16, 0, 0, 0, 0),
+        CityProcess::ProductionReserve => {
+            if prod_stored >= CityProcess::MAX_STOCKPILE {
+                (0, 0, ((p * 25) / 100).max(1) as i16, 0, 0)
+            } else {
+                let gain = ((p * 50) / 100)
+                    .max(2)
+                    .min(CityProcess::MAX_STOCKPILE - prod_stored);
+                (0, gain, 0, 0, 0)
+            }
+        }
+        CityProcess::Wealth => (0, 0, ((p * 50) / 100).max(2) as i16, 0, 0),
+        CityProcess::Research => (0, 0, 0, ((p * 35) / 100).max(2) as i16, 0),
+        CityProcess::Culture => (0, 0, 0, 0, ((p * 35) / 100).max(2) as i16),
+        CityProcess::Nothing => (0, 0, 0, 0, 0),
+    }
 }
 
 /// Compute total Rush-Buy discount (%) for `civ` from Civ Trait, Wonders (Big Ben) and Policies (Mercantilism).
@@ -235,6 +269,7 @@ pub fn rush_buy_cost(world: &World, rules: &Ruleset, civ: CivId, item: Productio
         ProductionItem::Building(bid) => {
             Ruleset::scaled_cost(rules.buildings[bid as usize].cost, world.config.rules.speed)
         }
+        ProductionItem::Process(_) => return 0,
     };
     let disc = civ_rush_discount_pct(world, rules, civ);
     ((base * 2) * (100 - disc) / 100).max(20)
@@ -361,10 +396,14 @@ pub fn next_mandatory_choice(
     for ci in 0..world.cities.len() {
         if world.cities.alive[ci] && world.cities.civ[ci] == civ && world.cities.producing[ci].is_none() {
             let bbits = world.cities.buildings[ci];
+            let coastal = world.map.is_adjacent_to_water(world.cities.pos[ci]);
             let has_option = rules
                 .units
                 .iter()
-                .any(|u| rules.can_train_unit_for_civ(techs, tpl_idx, u.id))
+                .any(|u| {
+                    (!u.role.is_naval() || coastal)
+                        && rules.can_train_unit_for_civ(techs, tpl_idx, u.id)
+                })
                 || rules.buildings.iter().any(|b| {
                     rules.can_build_building_for_civ(techs, bbits, world.wonders_built, tpl_idx, b.id)
                 });
@@ -426,8 +465,21 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
             expand_city_borders(world, ci as CityId);
         }
 
-        // Production completion
+        // Production completion or continuous City Process
         if let Some(item) = world.cities.producing[ci] {
+            if let ProductionItem::Process(proc) = item {
+                // Continuous focus/standby repeats every turn without clearing `producing[ci]`!
+                if proc == CityProcess::ProductionReserve {
+                    let (_, bank_gain, _, _, _) =
+                        city_process_bonus(y.prod, world.cities.prod_stored[ci], proc);
+                    if bank_gain > 0 {
+                        world.cities.prod_stored[ci] =
+                            (world.cities.prod_stored[ci] + bank_gain).min(CityProcess::MAX_STOCKPILE);
+                    }
+                }
+                continue;
+            }
+
             // Check if another civ already completed this unique World Wonder
             if let ProductionItem::Building(bid) = item {
                 let bdef = &rules.buildings[bid as usize];
@@ -444,6 +496,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
             let cost = match item {
                 ProductionItem::Unit(uk) => Ruleset::scaled_cost(rules.units[uk as usize].cost, speed),
                 ProductionItem::Building(bid) => Ruleset::scaled_cost(rules.buildings[bid as usize].cost, speed),
+                ProductionItem::Process(_) => unreachable!(),
             };
             if world.cities.prod_stored[ci] >= cost {
                 world.cities.prod_stored[ci] -= cost;
@@ -497,6 +550,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
                             });
                         }
                     }
+                    ProductionItem::Process(_) => unreachable!(),
                 }
             }
         }
@@ -746,6 +800,7 @@ pub fn rush_buy(world: &mut World, rules: &Ruleset, city: CityId, item: Producti
                 });
             }
         }
+        ProductionItem::Process(_) => return false,
     }
     recompute_all_civs(world, rules);
     true

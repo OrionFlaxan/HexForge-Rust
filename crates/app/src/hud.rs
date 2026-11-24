@@ -4,11 +4,11 @@ use crate::settings::{
     ACCENT_CYAN, ACCENT_GOLD, ACCENT_GREEN, ACCENT_PURPLE, ACCENT_RED, BG_CARD, BG_PANEL,
     BORDER_DIM, BORDER_GOLD,
 };
-use crate::sprites::{draw_building_icon, draw_unit_sprite, draw_worker_order_icon};
+use crate::sprites::{draw_building_icon, draw_process_icon, draw_unit_sprite, draw_worker_order_icon};
 use hexforge_sim::combat::{can_merge_units, city_defense_strength, find_merge_partner};
 use hexforge_sim::economy::{
-    compute_city_yields, next_mandatory_choice, pick_next_available_tech, rush_buy_cost,
-    tile_yields,
+    city_process_bonus, compute_city_yields, next_mandatory_choice, pick_next_available_tech,
+    rush_buy_cost, tile_yields,
 };
 use hexforge_sim::improvements::{available_worker_orders, can_pillage_tile};
 use hexforge_sim::policies::{
@@ -16,9 +16,10 @@ use hexforge_sim::policies::{
 };
 use hexforge_sim::ruleset::{BuildingDef, Ruleset, NUM_ERAS};
 use hexforge_sim::types::{
-    CityId, CivId, DiploStatus, GameConfig, MapSize, PendingChoice, PolicyId, ProductionItem,
-    Road, TechId, TileId, UnitId, UnitRole, VictoryKind, WorkerOrder, Yields, INVALID_CITY,
-    NO_CIV, VICTORY_CULTURE, VICTORY_DOMINATION, VICTORY_SCIENCE, VICTORY_SCORE,
+    CityId, CityProcess, CivId, DiploStatus, GameConfig, MapSize, PendingChoice, PolicyId,
+    ProductionItem, Road, TechId, TileId, UnitId, UnitRole, VictoryKind, WorkerOrder, Yields,
+    INVALID_CITY, INVALID_UNIT, NO_CIV, VICTORY_CULTURE, VICTORY_DOMINATION, VICTORY_SCIENCE,
+    VICTORY_SCORE,
 };
 use hexforge_sim::world::World;
 use hexforge_sim::TurnMetrics;
@@ -43,6 +44,7 @@ pub enum CityTab {
     Units,
     Buildings,
     Wonders,
+    Focus,
     Built,
 }
 
@@ -87,6 +89,9 @@ pub enum HudAction {
     None,
     EndTurn,
     ResolveChoice(PendingChoice),
+    ConfirmPendingOrder,
+    CancelPendingOrder,
+    DeselectUnit,
     NextUnit,
     MergeUnit(UnitId, UnitId),
     FoundCity(UnitId),
@@ -566,14 +571,14 @@ pub fn draw_title_screen(
 pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -> bool {
     let mut changed = false;
     let mut y = area.y + ui.dp(2.0);
-    let gap = ui.dp(6.0);
-    // Fit 6 clean rows comfortably on both phone & desktop screens
-    let row_h = ((area.h - ui.dp(54.0)) / 6.0).clamp(ui.dp(28.0), ui.dp(38.0));
+    let gap = ui.dp(5.0);
+    // Fit 7 clean rows comfortably on both phone & desktop screens
+    let row_h = ((area.h - ui.dp(58.0)) / 7.0).clamp(ui.dp(25.0), ui.dp(35.0));
     let half = (area.w - ui.dp(8.0)) * 0.5;
 
     // 1. Live Dual UI Theme Switcher: PIXEL ART vs MODERN SIMPLE!
     draw_text("UI Visual Theme (Instant Live Switch):", area.x, y + ui.dp(13.0), ui.fs(13.5), ACCENT_GOLD);
-    y += ui.dp(17.0);
+    y += ui.dp(16.0);
     let is_px = options.ui_theme == UiTheme::PixelArt;
     if ui_button(
         Rect::new(area.x, y, half, row_h),
@@ -605,7 +610,7 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
         ui.fs(13.0),
         ACCENT_CYAN,
     );
-    y += ui.dp(16.0);
+    y += ui.dp(15.0);
     let scales = [0.75f32, 0.90, 1.00, 1.15, 1.30, 1.50];
     let sbw = (area.w - ui.dp(25.0)) / 6.0;
     for (idx, &sc) in scales.iter().enumerate() {
@@ -624,25 +629,16 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
     }
     y += row_h + gap;
 
-    // 3. Gameplay Turn Guard & Map Toggles (2 columns x 4 rows)
-    let autosave_lbl = if options.autosave_interval == 0 {
-        "Autosave: OFF"
-    } else if options.autosave_interval == 5 {
-        "Autosave: 5 Turns"
-    } else if options.autosave_interval == 10 {
-        "Autosave: 10 Turns"
-    } else {
-        "Autosave: 25 Turns"
-    };
+    // 3. Gameplay Controls, Turn Guard & Map Toggles (2 columns x 4 rows + full-width Autosave row)
     let toggles: [(&str, bool, usize); 8] = [
+        ("Confirm Moves", options.confirm_unit_moves, 8),
         ("Force Tech/Build", options.require_turn_choices, 6),
         ("Force Policy Pick", options.require_policy_choice, 7),
+        ("Auto Next Unit", options.auto_next_unit, 4),
         ("Tile Yields", options.show_tile_yields, 0),
         ("Hex Grid Lines", options.show_hex_grid, 1),
         ("Resource Badges", options.show_resources, 2),
         ("Rust Perf / FPS", options.show_perf_hud, 3),
-        ("Auto Next Unit", options.auto_next_unit, 4),
-        (autosave_lbl, options.autosave_interval > 0, 5),
     ];
 
     for (i, &(lbl, on, id)) in toggles.iter().enumerate() {
@@ -650,13 +646,13 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
         let row = (i / 2) as f32;
         let rx = area.x + col * (half + ui.dp(8.0));
         let ry = y + row * (row_h + gap);
-        let text = if id == 5 {
-            lbl.to_string()
+        let text = if id == 8 {
+            if on { "Confirm Move: 2-TAP".to_string() } else { "Confirm Move: 1-TAP".to_string() }
         } else {
             format!("{}: {}", lbl, if on { "ON" } else { "OFF" })
         };
         let bdr = if on {
-            if id == 6 { ACCENT_GOLD } else { ACCENT_GREEN }
+            if id == 6 || id == 8 { ACCENT_GOLD } else { ACCENT_GREEN }
         } else {
             BORDER_DIM
         };
@@ -665,7 +661,7 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
             &text,
             if on { Color::new(0.14, 0.34, 0.24, 1.0) } else { ui.card_bg() },
             bdr,
-            ui.fs(12.5),
+            ui.fs(12.2),
         ) {
             match id {
                 0 => options.show_tile_yields = !options.show_tile_yields,
@@ -673,12 +669,33 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
                 2 => options.show_resources = !options.show_resources,
                 3 => options.show_perf_hud = !options.show_perf_hud,
                 4 => options.auto_next_unit = !options.auto_next_unit,
-                5 => options.cycle_autosave(),
                 6 => options.require_turn_choices = !options.require_turn_choices,
-                _ => options.require_policy_choice = !options.require_policy_choice,
+                7 => options.require_policy_choice = !options.require_policy_choice,
+                _ => options.confirm_unit_moves = !options.confirm_unit_moves,
             }
             changed = true;
         }
+    }
+
+    let autosave_y = y + 4.0 * (row_h + gap);
+    let autosave_lbl = if options.autosave_interval == 0 {
+        "Autosave Interval: OFF"
+    } else if options.autosave_interval == 5 {
+        "Autosave Interval: Every 5 Turns"
+    } else if options.autosave_interval == 10 {
+        "Autosave Interval: Every 10 Turns"
+    } else {
+        "Autosave Interval: Every 25 Turns"
+    };
+    if ui_button(
+        Rect::new(area.x, autosave_y, area.w, row_h),
+        autosave_lbl,
+        if options.autosave_interval > 0 { Color::new(0.14, 0.30, 0.42, 1.0) } else { ui.card_bg() },
+        if options.autosave_interval > 0 { ACCENT_CYAN } else { BORDER_DIM },
+        ui.fs(12.5),
+    ) {
+        options.cycle_autosave();
+        changed = true;
     }
 
     changed
@@ -694,6 +711,8 @@ pub fn draw_game_hud(
     viewer_civ: Option<CivId>,
     selected_tile: Option<TileId>,
     selected_unit: Option<UnitId>,
+    pending_order_tile: Option<TileId>,
+    pending_is_attack: bool,
     gui: &mut GameUiState,
     last_metrics: TurnMetrics,
     speculative_ready: bool,
@@ -949,6 +968,12 @@ pub fn draw_game_hud(
     if let Some(uid) = selected_unit {
         if world.units.is_alive(uid) {
             let ui_idx = uid as usize;
+            let uciv = world.units.civ[ui_idx];
+            let ucs = &world.civs[uciv as usize];
+            let utpl = &rules.civs[ucs.template_idx as usize];
+            let ucol = Color::from_rgba(ucs.color[0], ucs.color[1], ucs.color[2], 255);
+            let is_own = viewer_civ == Some(uciv);
+
             let def = &rules.units[world.units.kind[ui_idx] as usize];
             let form = world.units.formation[ui_idx];
             let flbl = if form.label().is_empty() {
@@ -957,14 +982,81 @@ pub fn draw_game_hud(
                 format!(" [{}]", form.label())
             };
             let uniq_tag = if def.unique_to_civ.is_some() { " *" } else { "" };
-            draw_text(
-                &format!("{}{}{}", def.name, uniq_tag, flbl),
-                pad,
-                by + ui.dp(19.0),
-                ui.fs(15.5),
-                ACCENT_GOLD,
-            );
-            let sub_line = if def.role == UnitRole::Worker {
+
+            // Civ Color Swatch on the left of unit info
+            draw_rectangle(pad, by + ui.dp(6.0), ui.dp(6.0), ui.dp(34.0), ucol);
+            let text_x = pad + ui.dp(11.0);
+
+            let title = if is_own {
+                format!("{}{}{}", def.name, uniq_tag, flbl)
+            } else if ui.is_portrait {
+                format!("{}{}{} — {}", def.name, uniq_tag, flbl, ucs.name)
+            } else {
+                format!("{}{}{} — {} ({})", def.name, uniq_tag, flbl, ucs.name, utpl.leader)
+            };
+            let diplo_status = viewer_civ.and_then(|vc| {
+                if vc != uciv {
+                    Some(world.diplo.status(vc, uciv))
+                } else {
+                    None
+                }
+            });
+            let title_col = match diplo_status {
+                Some(DiploStatus::War) => ACCENT_RED,
+                Some(_) => ucol,
+                None => ACCENT_GOLD,
+            };
+            draw_text(&title, text_x, by + ui.dp(19.0), ui.fs(15.0), title_col);
+
+            let sub_line = if is_own && pending_order_tile.is_some() {
+                let target_tid = pending_order_tile.unwrap();
+                let tti = target_tid as usize;
+                if pending_is_attack {
+                    let eu = world.units.tile_mil_unit[tti];
+                    let ec = world.cities.tile_city[tti];
+                    if eu != INVALID_UNIT && world.units.is_alive(eu) {
+                        let eciv = &world.civs[world.units.civ[eu as usize] as usize];
+                        let edef = &rules.units[world.units.kind[eu as usize] as usize];
+                        format!("ATK {} [{}] — Tap hex again or CONFIRM", edef.name, eciv.name)
+                    } else if ec != INVALID_CITY && world.cities.is_alive(ec) {
+                        let eciv = &world.civs[world.cities.civ[ec as usize] as usize];
+                        format!("ATK {} [{}] — Tap hex again or CONFIRM", world.cities.name[ec as usize], eciv.name)
+                    } else {
+                        "Tap enemy hex again (or CONFIRM) to attack".to_string()
+                    }
+                } else {
+                    let feat = world.map.feature[tti].name();
+                    let tdesc = if feat.is_empty() {
+                        world.map.terrain[tti].name().to_string()
+                    } else {
+                        format!("{} / {}", world.map.terrain[tti].name(), feat)
+                    };
+                    format!("Move -> {tdesc} — Tap hex again or CONFIRM")
+                }
+            } else if !is_own {
+                let dtag = match diplo_status {
+                    Some(DiploStatus::War) => "[AT WAR] ",
+                    Some(DiploStatus::Alliance) => "[ALLY] ",
+                    Some(DiploStatus::Peace) => "[PEACE] ",
+                    _ => "[FOREIGN] ",
+                };
+                let cs_val = def.strength.max(def.ranged_strength) as i32 + form.strength_bonus();
+                if ui.is_portrait {
+                    format!(
+                        "{dtag}{} | HP {} | CS {} | Mov {}",
+                        utpl.leader, world.units.hp[ui_idx], cs_val, def.moves
+                    )
+                } else {
+                    format!(
+                        "{dtag}HP {} | CS {} | Mov {:.1}/{} | XP {}",
+                        world.units.hp[ui_idx],
+                        cs_val,
+                        world.units.moves_halves[ui_idx] as f32 * 0.5,
+                        def.moves,
+                        world.units.xp[ui_idx]
+                    )
+                }
+            } else if def.role == UnitRole::Worker {
                 let pos = world.units.pos[ui_idx] as usize;
                 let auto_tag = if world.units.auto_work[ui_idx] { " | AUTO" } else { "" };
                 if world.units.working[ui_idx] {
@@ -1002,22 +1094,55 @@ pub fn draw_game_hud(
                     world.units.xp[ui_idx]
                 )
             };
-            draw_text(&sub_line, pad, by + ui.dp(37.0), ui.fs(13.0), LIGHTGRAY);
+            let sub_col = if is_own && pending_order_tile.is_some() {
+                if pending_is_attack { ACCENT_RED } else { ACCENT_GOLD }
+            } else if diplo_status == Some(DiploStatus::War) {
+                Color::from_rgba(255, 152, 142, 255)
+            } else {
+                LIGHTGRAY
+            };
+            draw_text(&sub_line, text_x, by + ui.dp(37.0), ui.fs(12.8), sub_col);
 
-            if viewer_civ == Some(world.units.civ[ui_idx]) {
-                let mut bx = pad;
-                let max_x = if ui.is_portrait { ui.sw - pad } else { end_r.x - ui.dp(6.0) };
+            let mut bx = pad;
+            let max_x = if ui.is_portrait { ui.sw - pad } else { end_r.x - ui.dp(6.0) };
 
+            if is_own && pending_order_tile.is_some() {
+                let cw = ui.dp(128.0);
+                let (clbl, cbg, cbdr) = if pending_is_attack {
+                    ("CONFIRM ATK", Color::new(0.56, 0.16, 0.16, 1.0), ACCENT_RED)
+                } else {
+                    ("CONFIRM MOVE", Color::new(0.14, 0.46, 0.24, 1.0), ACCENT_GREEN)
+                };
+                if bx + cw <= max_x {
+                    if ui_button(Rect::new(bx, act_y, cw, act_h), clbl, cbg, cbdr, ui.fs(13.0)) {
+                        action = HudAction::ConfirmPendingOrder;
+                    }
+                    bx += cw + ui.dp(6.0);
+                }
+                let can_w = ui.dp(88.0);
+                if bx + can_w <= max_x {
+                    if ui_button(Rect::new(bx, act_y, can_w, act_h), "CANCEL", ui.card_bg(), ACCENT_GOLD, ui.fs(12.5)) {
+                        action = HudAction::CancelPendingOrder;
+                    }
+                    bx += can_w + ui.dp(6.0);
+                }
+                let dw = ui.dp(86.0);
+                if bx + dw <= max_x {
+                    if ui_button(Rect::new(bx, act_y, dw, act_h), "DESELECT", ui.card_bg(), BORDER_DIM, ui.fs(12.0)) {
+                        action = HudAction::DeselectUnit;
+                    }
+                }
+            } else if is_own {
                 if let Some(partner) = find_merge_partner(world, rules, uid) {
                     if let Some(next_f) = can_merge_units(world, rules, uid, partner) {
-                        let mw = ui.dp(116.0);
+                        let mw = ui.dp(112.0);
                         if bx + mw <= max_x {
                             if ui_button(
                                 Rect::new(bx, act_y, mw, act_h),
                                 &format!("MERGE {}", next_f.label().to_uppercase()),
                                 Color::new(0.48, 0.36, 0.10, 1.0),
                                 ACCENT_GOLD,
-                                ui.fs(12.5),
+                                ui.fs(12.0),
                             ) {
                                 action = HudAction::MergeUnit(uid, partner);
                             }
@@ -1027,14 +1152,14 @@ pub fn draw_game_hud(
                 }
 
                 if def.role == UnitRole::Settler {
-                    let fw = ui.dp(108.0);
+                    let fw = ui.dp(106.0);
                     if bx + fw <= max_x {
                         if ui_button(
                             Rect::new(bx, act_y, fw, act_h),
                             "FOUND CITY",
                             Color::new(0.16, 0.44, 0.24, 1.0),
                             ACCENT_GREEN,
-                            ui.fs(13.0),
+                            ui.fs(12.5),
                         ) {
                             action = HudAction::FoundCity(uid);
                         }
@@ -1052,14 +1177,14 @@ pub fn draw_game_hud(
                     } else {
                         "IMPROVE...".into()
                     };
-                    let iw = ui.dp(118.0);
+                    let iw = ui.dp(114.0);
                     if bx + iw <= max_x {
                         if ui_button(
                             Rect::new(bx, act_y, iw, act_h),
                             &imp_lbl,
                             if orders_n > 0 { Color::new(0.16, 0.38, 0.54, 1.0) } else { ui.card_bg() },
                             if orders_n > 0 { ACCENT_GOLD } else { BORDER_DIM },
-                            ui.fs(13.0),
+                            ui.fs(12.5),
                         ) {
                             gui.worker_scroll.reset();
                             action = HudAction::OpenModal(ActiveModal::WorkerActions(uid));
@@ -1067,7 +1192,7 @@ pub fn draw_game_hud(
                         bx += iw + ui.dp(5.0);
                     }
 
-                    let aw = ui.dp(92.0);
+                    let aw = ui.dp(88.0);
                     let is_auto = world.units.auto_work[ui_idx];
                     if bx + aw <= max_x {
                         if ui_button(
@@ -1075,7 +1200,7 @@ pub fn draw_game_hud(
                             if is_auto { "AUTO: ON" } else { "AUTO WORK" },
                             if is_auto { Color::new(0.14, 0.42, 0.24, 1.0) } else { ui.card_bg() },
                             if is_auto { ACCENT_GREEN } else { BORDER_DIM },
-                            ui.fs(12.5),
+                            ui.fs(12.0),
                         ) {
                             action = HudAction::ToggleAutoWork(uid);
                         }
@@ -1084,16 +1209,15 @@ pub fn draw_game_hud(
                 }
 
                 if can_pillage_tile(world, rules, uid) {
-                    let pw = ui.dp(112.0);
-                    let uc = world.units.civ[ui_idx] as usize;
-                    let loot = 20 + rules.civs[world.civs[uc].template_idx as usize].pillage_gold_bonus;
+                    let pw = ui.dp(106.0);
+                    let loot = 20 + utpl.pillage_gold_bonus;
                     if bx + pw <= max_x {
                         if ui_button(
                             Rect::new(bx, act_y, pw, act_h),
                             &format!("PILLAGE +{loot}g"),
                             Color::new(0.54, 0.22, 0.12, 1.0),
                             ACCENT_GOLD,
-                            ui.fs(12.5),
+                            ui.fs(12.0),
                         ) {
                             action = HudAction::PillageTile(uid);
                         }
@@ -1101,19 +1225,87 @@ pub fn draw_game_hud(
                     }
                 }
 
+                // Quick CITY shortcut if garrisoned on own friendly city
+                let own_city = world.cities.tile_city[world.units.pos[ui_idx] as usize];
+                if own_city != INVALID_CITY
+                    && world.cities.alive[own_city as usize]
+                    && world.cities.civ[own_city as usize] == uciv
+                {
+                    let cw = ui.dp(62.0);
+                    if bx + cw <= max_x {
+                        if ui_button(
+                            Rect::new(bx, act_y, cw, act_h),
+                            "CITY",
+                            Color::new(0.18, 0.34, 0.50, 1.0),
+                            ACCENT_GOLD,
+                            ui.fs(12.0),
+                        ) {
+                            gui.city_scroll.reset();
+                            action = HudAction::OpenModal(ActiveModal::City(own_city));
+                        }
+                        bx += cw + ui.dp(5.0);
+                    }
+                }
+
                 if def.role.is_combat() && !def.role.is_air() {
-                    let fw = ui.dp(80.0);
+                    let fw = ui.dp(74.0);
                     if bx + fw <= max_x {
-                        if ui_button(Rect::new(bx, act_y, fw, act_h), "FORTIFY", BG_CARD, BORDER_DIM, ui.fs(12.5)) {
+                        if ui_button(Rect::new(bx, act_y, fw, act_h), "FORTIFY", BG_CARD, BORDER_DIM, ui.fs(12.0)) {
                             action = HudAction::FortifyUnit(uid);
                         }
                         bx += fw + ui.dp(5.0);
                     }
                 }
 
-                let nw = ui.dp(88.0);
+                let dw = if ui.is_portrait { ui.dp(68.0) } else { ui.dp(82.0) };
+                if bx + dw <= max_x {
+                    if ui_button(
+                        Rect::new(bx, act_y, dw, act_h),
+                        if ui.is_portrait { "UNSEL" } else { "DESELECT" },
+                        ui.card_bg(),
+                        BORDER_DIM,
+                        ui.fs(11.8),
+                    ) {
+                        action = HudAction::DeselectUnit;
+                    }
+                    bx += dw + ui.dp(5.0);
+                }
+
+                let nw = ui.dp(82.0);
                 if bx + nw <= max_x {
-                    if ui_button(Rect::new(bx, act_y, nw, act_h), "NEXT UNIT", BG_CARD, ACCENT_CYAN, ui.fs(12.5)) {
+                    if ui_button(Rect::new(bx, act_y, nw, act_h), "NEXT UNIT", BG_CARD, ACCENT_CYAN, ui.fs(12.0)) {
+                        action = HudAction::NextUnit;
+                    }
+                }
+            } else if viewer_civ.is_some() {
+                // Inspecting a foreign unit — offer quick DIPLO + DESELECT + NEXT UNIT!
+                let dip_w = ui.dp(102.0);
+                if bx + dip_w <= max_x {
+                    if ui_button(
+                        Rect::new(bx, act_y, dip_w, act_h),
+                        "DIPLOMACY",
+                        if diplo_status == Some(DiploStatus::War) {
+                            Color::new(0.46, 0.16, 0.16, 1.0)
+                        } else {
+                            Color::new(0.16, 0.30, 0.46, 1.0)
+                        },
+                        if diplo_status == Some(DiploStatus::War) { ACCENT_RED } else { ACCENT_GOLD },
+                        ui.fs(12.5),
+                    ) {
+                        action = HudAction::OpenModal(ActiveModal::Diplo);
+                    }
+                    bx += dip_w + ui.dp(5.0);
+                }
+                let dw = ui.dp(80.0);
+                if bx + dw <= max_x {
+                    if ui_button(Rect::new(bx, act_y, dw, act_h), "DESELECT", ui.card_bg(), BORDER_DIM, ui.fs(12.0)) {
+                        action = HudAction::DeselectUnit;
+                    }
+                    bx += dw + ui.dp(5.0);
+                }
+                let nw = ui.dp(86.0);
+                if bx + nw <= max_x {
+                    if ui_button(Rect::new(bx, act_y, nw, act_h), "NEXT UNIT", BG_CARD, ACCENT_CYAN, ui.fs(12.0)) {
                         action = HudAction::NextUnit;
                     }
                 }
@@ -1124,31 +1316,40 @@ pub fn draw_game_hud(
         let cid = world.cities.tile_city[ti];
         if cid != INVALID_CITY && world.cities.alive[cid as usize] {
             let ci = cid as usize;
+            let cciv = world.cities.civ[ci];
+            let ccs = &world.civs[cciv as usize];
+            let ccol = Color::from_rgba(ccs.color[0], ccs.color[1], ccs.color[2], 255);
+            let is_own_city = viewer_civ == Some(cciv);
             let y = compute_city_yields(world, rules, cid);
             let def_s = city_defense_strength(world, rules, cid);
             let cur_prod = match world.cities.producing[ci] {
                 Some(ProductionItem::Unit(u)) => rules.units[u as usize].name.as_str(),
                 Some(ProductionItem::Building(b)) => rules.buildings[b as usize].name.as_str(),
+                Some(ProductionItem::Process(p)) => p.short_label(),
                 None => "Idle",
             };
-            draw_text(
-                &format!(
-                    "{} (Pop {} | Def {} | HP {}/{})",
-                    world.cities.name[ci], world.cities.pop[ci], def_s, world.cities.hp[ci], world.cities.max_hp[ci]
-                ),
-                pad,
-                by + ui.dp(19.0),
-                ui.fs(15.0),
-                ACCENT_GOLD,
-            );
-            draw_text(
-                &format!("{:+}F {}P {:+}G {}S {}C | {}", y.food, y.prod, y.gold, y.science, y.culture, cur_prod),
-                pad,
-                by + ui.dp(37.0),
-                ui.fs(13.0),
-                LIGHTGRAY,
-            );
-            if viewer_civ == Some(world.cities.civ[ci]) {
+
+            draw_rectangle(pad, by + ui.dp(6.0), ui.dp(6.0), ui.dp(34.0), ccol);
+            let text_x = pad + ui.dp(11.0);
+
+            if is_own_city {
+                draw_text(
+                    &format!(
+                        "{} (Pop {} | Def {} | HP {}/{})",
+                        world.cities.name[ci], world.cities.pop[ci], def_s, world.cities.hp[ci], world.cities.max_hp[ci]
+                    ),
+                    text_x,
+                    by + ui.dp(19.0),
+                    ui.fs(15.0),
+                    ACCENT_GOLD,
+                );
+                draw_text(
+                    &format!("{:+}F {}P {:+}G {}S {}C | {}", y.food, y.prod, y.gold, y.science, y.culture, cur_prod),
+                    text_x,
+                    by + ui.dp(37.0),
+                    ui.fs(13.0),
+                    LIGHTGRAY,
+                );
                 let cw = ui.dp(136.0);
                 if ui_button(
                     Rect::new(pad, act_y, cw, act_h),
@@ -1159,6 +1360,61 @@ pub fn draw_game_hud(
                 ) {
                     gui.city_scroll.reset();
                     action = HudAction::OpenModal(ActiveModal::City(cid));
+                }
+            } else {
+                let dstatus = viewer_civ.map(|vc| world.diplo.status(vc, cciv));
+                let dtag = match dstatus {
+                    Some(DiploStatus::War) => "AT WAR",
+                    Some(DiploStatus::Alliance) => "ALLY",
+                    Some(DiploStatus::Peace) => "PEACE",
+                    _ => "FOREIGN",
+                };
+                draw_text(
+                    &format!("{} — {} [{}]", world.cities.name[ci], ccs.name, dtag),
+                    text_x,
+                    by + ui.dp(19.0),
+                    ui.fs(15.0),
+                    if dstatus == Some(DiploStatus::War) { ACCENT_RED } else { ccol },
+                );
+                draw_text(
+                    &format!(
+                        "Pop {} | Def {} | HP {}/{} | Leader: {}",
+                        world.cities.pop[ci],
+                        def_s,
+                        world.cities.hp[ci],
+                        world.cities.max_hp[ci],
+                        rules.civs[ccs.template_idx as usize].leader
+                    ),
+                    text_x,
+                    by + ui.dp(37.0),
+                    ui.fs(13.0),
+                    LIGHTGRAY,
+                );
+                if viewer_civ.is_some() {
+                    let dw = ui.dp(112.0);
+                    if ui_button(
+                        Rect::new(pad, act_y, dw, act_h),
+                        "DIPLOMACY",
+                        if dstatus == Some(DiploStatus::War) {
+                            Color::new(0.46, 0.16, 0.16, 1.0)
+                        } else {
+                            Color::new(0.16, 0.30, 0.46, 1.0)
+                        },
+                        if dstatus == Some(DiploStatus::War) { ACCENT_RED } else { ACCENT_GOLD },
+                        ui.fs(13.0),
+                    ) {
+                        action = HudAction::OpenModal(ActiveModal::Diplo);
+                    }
+                    let nw = ui.dp(96.0);
+                    if ui_button(
+                        Rect::new(pad + dw + ui.dp(6.0), act_y, nw, act_h),
+                        "NEXT UNIT",
+                        BG_CARD,
+                        ACCENT_CYAN,
+                        ui.fs(12.5),
+                    ) {
+                        action = HudAction::NextUnit;
+                    }
                 }
             }
         } else {
@@ -1173,13 +1429,19 @@ pub fn draw_game_hud(
             let res = world.map.resource[ti].name();
             let imp = world.map.improvement[ti].name();
             let pil = if world.map.pillaged[ti] { " [PILLAGED]" } else { "" };
+            let own_str = if owner != NO_CIV {
+                format!(" | {}", world.civs[owner as usize].name)
+            } else {
+                String::new()
+            };
             let desc = format!(
-                "{}{}{}{}{}",
+                "{}{}{}{}{}{}",
                 world.map.terrain[ti].name(),
                 if feat.is_empty() { String::new() } else { format!(" / {feat}") },
                 if res.is_empty() { String::new() } else { format!(" [{res}]") },
                 if imp.is_empty() { String::new() } else { format!(" ({imp})") },
                 pil,
+                own_str,
             );
             draw_text(&desc, pad, by + ui.dp(19.0), ui.fs(14.5), WHITE);
             let work_note = if let Some(ord) = world.map.work_order[ti] {
@@ -1208,10 +1470,10 @@ pub fn draw_game_hud(
         }
     } else if viewer_civ.is_some() {
         draw_text(
-            "Tap a unit to move/attack, or tap a city to manage.",
+            "Tap a unit to select (2-tap tile to move, 2-tap unit to deselect).",
             pad,
             by + ui.dp(24.0),
-            ui.fs(13.5),
+            ui.fs(13.0),
             LIGHTGRAY,
         );
         if ui_button(
@@ -1587,6 +1849,7 @@ fn draw_city_modal(
     let prod_name = match world.cities.producing[ci] {
         Some(ProductionItem::Unit(u)) => rules.units[u as usize].name.as_str(),
         Some(ProductionItem::Building(b)) => rules.buildings[b as usize].name.as_str(),
+        Some(ProductionItem::Process(p)) => p.name(),
         None => "Nothing (Choose Production!)",
     };
     draw_text(
@@ -1600,7 +1863,7 @@ fn draw_city_modal(
         if world.cities.producing[ci].is_none() { ACCENT_GOLD } else { ACCENT_CYAN },
     );
 
-    // Pre-build the 4 separate civ-aware category lists cleanly! (item, label, cost, detail, is_unique)
+    // Pre-build the civ-aware category lists cleanly! (item, label, cost, detail, is_unique)
     let mut unit_items: Vec<(ProductionItem, String, i32, String, bool)> = Vec::new();
     for u in &rules.units {
         if rules.can_train_unit_for_civ(cs.tech_bits, tpl_idx, u.id) {
@@ -1654,25 +1917,26 @@ fn draw_city_modal(
         }
     }
 
-    // 4 Dedicated Segmented Production Tabs: UNITS | BLDGS | WONDERS | BUILT
+    // 5 Dedicated Segmented Production Tabs: UNITS | BLDGS | WONDERS | FOCUS | BUILT
     let tab_y = body_top + ui.dp(27.0);
     let tab_h = ui.dp(36.0);
-    let tab_w = (rect.w - pad * 2.0 - ui.dp(15.0)) / 4.0;
+    let tab_w = (rect.w - pad * 2.0 - ui.dp(16.0)) / 5.0;
     let tab_defs = [
         (CityTab::Units, format!("UNITS ({})", unit_items.len()), ACCENT_CYAN),
         (CityTab::Buildings, format!("BLDGS ({})", bldg_items.len()), ACCENT_GREEN),
-        (CityTab::Wonders, format!("WONDERS ({})", wonder_items.len()), ACCENT_GOLD),
+        (CityTab::Wonders, format!("WONDR ({})", wonder_items.len()), ACCENT_GOLD),
+        (CityTab::Focus, "FOCUS (6)".to_string(), Color::from_rgba(244, 174, 72, 255)),
         (CityTab::Built, format!("BUILT ({})", built_items.len()), ACCENT_PURPLE),
     ];
     for (idx, (t, lbl, accent)) in tab_defs.iter().enumerate() {
-        let r = Rect::new(rect.x + pad + (idx as f32) * (tab_w + ui.dp(5.0)), tab_y, tab_w, tab_h);
+        let r = Rect::new(rect.x + pad + (idx as f32) * (tab_w + ui.dp(4.0)), tab_y, tab_w, tab_h);
         let active = *city_tab == *t;
         if ui_button(
             r,
             lbl,
             if active { Color::new(0.16, 0.34, 0.48, 1.0) } else { ui.card_bg() },
             if active { *accent } else { BORDER_DIM },
-            ui.fs(12.0),
+            ui.fs(if ui.is_portrait { 10.8 } else { 11.8 }),
         ) {
             *city_tab = *t;
             scroll.reset();
@@ -1688,6 +1952,88 @@ fn draw_city_modal(
     let icon_cx = list_area.x + ui.dp(22.0);
 
     let max_scroll = match *city_tab {
+        CityTab::Focus => {
+            let ms = ((CityProcess::ALL.len() as f32) * row_h - list_h).max(0.0);
+            scroll.update(list_area, ms, ui);
+            let stored = world.cities.prod_stored[ci];
+
+            for (idx, &proc) in CityProcess::ALL.iter().enumerate() {
+                let ry = list_top + (idx as f32) * row_h - scroll.offset;
+                if ry < list_top - ui.dp(4.0) || ry + row_h > list_top + list_h + ui.dp(4.0) {
+                    continue;
+                }
+                let item = ProductionItem::Process(proc);
+                let is_cur = world.cities.producing[ci] == Some(item);
+                let card_r = Rect::new(list_area.x, ry, list_area.w, row_h - ui.dp(4.0));
+                draw_panel(
+                    ui,
+                    card_r,
+                    if is_cur { Color::new(0.16, 0.30, 0.42, 0.98) } else { ui.card_bg() },
+                    if is_cur { ACCENT_CYAN } else { BORDER_DIM },
+                );
+
+                let icon_cy = ry + (row_h - ui.dp(4.0)) * 0.5;
+                draw_process_icon(ui.theme, icon_cx, icon_cy, ui.dp(13.5), proc);
+
+                let (bf, bp_bank, bg, bs, bc) = city_process_bonus(y.prod, stored, proc);
+                let detail = match proc {
+                    CityProcess::FoodFocus => {
+                        format!("Converts 40% of Prod -> +{bf} Food/turn (repeats forever)")
+                    }
+                    CityProcess::ProductionReserve => {
+                        if stored >= CityProcess::MAX_STOCKPILE {
+                            format!(
+                                "Stockpile FULL ({}/{}) -> overflows +{bg} Gold/turn",
+                                stored,
+                                CityProcess::MAX_STOCKPILE
+                            )
+                        } else {
+                            format!(
+                                "Banks +{bp_bank} Prod/turn for next build (Stored: {}/{})",
+                                stored,
+                                CityProcess::MAX_STOCKPILE
+                            )
+                        }
+                    }
+                    CityProcess::Wealth => {
+                        format!("Converts 50% of Prod -> +{bg} Gold/turn (repeats forever)")
+                    }
+                    CityProcess::Research => {
+                        format!("Converts 35% of Prod -> +{bs} Science/turn (repeats forever)")
+                    }
+                    CityProcess::Culture => {
+                        format!("Converts 35% of Prod -> +{bc} Culture/turn (repeats forever)")
+                    }
+                    CityProcess::Nothing => {
+                        "Standby: build nothing & unblock End Turn (keeps stored Prod)".to_string()
+                    }
+                };
+
+                let title_col = match proc {
+                    CityProcess::FoodFocus => ACCENT_GREEN,
+                    CityProcess::ProductionReserve => ACCENT_GOLD,
+                    CityProcess::Wealth => ACCENT_GOLD,
+                    CityProcess::Research => ACCENT_CYAN,
+                    CityProcess::Culture => ACCENT_PURPLE,
+                    CityProcess::Nothing => WHITE,
+                };
+                draw_text(proc.name(), text_x, ry + ui.dp(20.0), ui.fs(14.0), title_col);
+                draw_text(&detail, text_x, ry + ui.dp(39.0), ui.fs(11.3), LIGHTGRAY);
+
+                let bw = ui.dp(92.0);
+                let bh = row_h - ui.dp(16.0);
+                let btn_x = list_area.x + list_area.w - bw - ui.dp(6.0);
+                let (blbl, bbg, bbdr) = if is_cur {
+                    ("ACTIVE", Color::new(0.16, 0.34, 0.50, 1.0), ACCENT_CYAN)
+                } else {
+                    ("SET", Color::new(0.14, 0.38, 0.24, 1.0), ACCENT_GREEN)
+                };
+                if ui_button(Rect::new(btn_x, ry + ui.dp(6.0), bw, bh), blbl, bbg, bbdr, ui.fs(13.0)) {
+                    return Some(HudAction::SetProduction(cid, item));
+                }
+            }
+            ms
+        }
         CityTab::Built => {
             let has_rail = world.map.road[world.cities.pos[ci] as usize] == Road::Railroad;
             let total_rows = built_items.len() + if has_rail { 1 } else { 0 };
@@ -1752,7 +2098,7 @@ fn draw_city_modal(
                 CityTab::Units => (&unit_items, false),
                 CityTab::Buildings => (&bldg_items, false),
                 CityTab::Wonders => (&wonder_items, true),
-                CityTab::Built => unreachable!(),
+                CityTab::Focus | CityTab::Built => unreachable!(),
             };
             let ms = ((items.len() as f32) * row_h - list_h).max(0.0);
             scroll.update(list_area, ms, ui);
@@ -1762,9 +2108,19 @@ fn draw_city_modal(
                     CityTab::Units => "No units available to train.",
                     CityTab::Buildings => "All unlocked buildings are already constructed here!",
                     CityTab::Wonders => "No unlocked World Wonders available (research new eras!).",
-                    CityTab::Built => "",
+                    CityTab::Focus | CityTab::Built => "",
                 };
-                draw_text(empty_msg, list_area.x, list_top + ui.dp(32.0), ui.fs(14.0), LIGHTGRAY);
+                draw_text(empty_msg, list_area.x, list_top + ui.dp(28.0), ui.fs(14.0), LIGHTGRAY);
+                if ui_button(
+                    Rect::new(list_area.x, list_top + ui.dp(46.0), ui.dp(240.0).min(list_area.w), ui.dp(38.0)),
+                    "OPEN FOCUS / BUILD NOTHING",
+                    Color::new(0.18, 0.34, 0.48, 1.0),
+                    ACCENT_GOLD,
+                    ui.fs(13.0),
+                ) {
+                    *city_tab = CityTab::Focus;
+                    scroll.reset();
+                }
             }
 
             for (idx, (item, label, cost, detail, is_uniq)) in items.iter().enumerate() {
@@ -1811,6 +2167,9 @@ fn draw_city_modal(
                     ProductionItem::Building(bid) => {
                         let bdef = &rules.buildings[bid as usize];
                         draw_building_icon(ui.theme, icon_cx, icon_cy, ui.dp(13.5), bdef, civ_col);
+                    }
+                    ProductionItem::Process(p) => {
+                        draw_process_icon(ui.theme, icon_cx, icon_cy, ui.dp(13.5), p);
                     }
                 }
 
@@ -1869,16 +2228,29 @@ fn draw_city_modal(
 
     let fy = rect.y + rect.h - footer_h + ui.dp(4.0);
     let fh = footer_h - ui.dp(10.0);
-    let sbw = ui.dp(114.0);
+    let sbw = ui.dp(90.0);
     if scroll.offset > 1.0
-        && ui_button(Rect::new(rect.x + pad, fy, sbw, fh), "UP", BG_CARD, BORDER_DIM, ui.fs(13.0))
+        && ui_button(Rect::new(rect.x + pad, fy, sbw, fh), "UP", BG_CARD, BORDER_DIM, ui.fs(12.5))
     {
         scroll.offset = (scroll.offset - list_h * 0.65).max(0.0);
     }
     if scroll.offset < max_scroll - 1.0
-        && ui_button(Rect::new(rect.x + pad + sbw + ui.dp(8.0), fy, sbw, fh), "DOWN", BG_CARD, BORDER_DIM, ui.fs(13.0))
+        && ui_button(Rect::new(rect.x + pad + sbw + ui.dp(6.0), fy, sbw, fh), "DOWN", BG_CARD, BORDER_DIM, ui.fs(12.5))
     {
         scroll.offset = (scroll.offset + list_h * 0.65).min(max_scroll);
+    }
+
+    // Permanent 1-tap BUILD NOTHING / Standby shortcut on right side of footer so a city can NEVER soft-lock!
+    let is_idle = world.cities.producing[ci] == Some(ProductionItem::Process(CityProcess::Nothing));
+    let idw = ui.dp(136.0);
+    if ui_button(
+        Rect::new(rect.x + rect.w - pad - idw, fy, idw, fh),
+        if is_idle { "IDLE ACTIVE" } else { "BUILD NOTHING" },
+        if is_idle { Color::new(0.16, 0.32, 0.44, 1.0) } else { ui.card_bg() },
+        if is_idle { ACCENT_CYAN } else { BORDER_GOLD },
+        ui.fs(12.0),
+    ) {
+        return Some(HudAction::SetProduction(cid, ProductionItem::Process(CityProcess::Nothing)));
     }
     None
 }

@@ -53,6 +53,9 @@ pub struct AppOptions {
     /// Optionally also prompt to adopt a Social Policy before ending the turn when affordable.
     #[serde(default)]
     pub require_policy_choice: bool,
+    /// Require a 2nd tap on the same destination tile to confirm unit moves & attacks (prevents mis-taps).
+    #[serde(default = "default_true")]
+    pub confirm_unit_moves: bool,
 }
 
 impl Default for AppOptions {
@@ -68,6 +71,7 @@ impl Default for AppOptions {
             ui_theme: UiTheme::PixelArt,
             require_turn_choices: true,
             require_policy_choice: false,
+            confirm_unit_moves: true,
         }
     }
 }

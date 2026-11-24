@@ -1,6 +1,6 @@
 use crate::settings::UiTheme;
 use hexforge_sim::ruleset::BuildingDef;
-use hexforge_sim::types::{Improvement, UnitRole, WorkerOrder};
+use hexforge_sim::types::{CityProcess, Improvement, UnitRole, WorkerOrder};
 use macroquad::prelude::*;
 
 #[inline]
@@ -597,6 +597,81 @@ pub fn draw_building_icon(theme: UiTheme, cx: f32, cy: f32, size: f32, b: &Build
             draw_poly(cx, cy, 5, size * 0.56, -90.0, gold);
         } else {
             draw_rectangle(cx - size * 0.45, cy - size * 0.45, size * 0.9, size * 0.9, accent);
+        }
+    }
+}
+
+/// Draw a miniature procedural icon for a repeatable `CityProcess` inside the City FOCUS tab.
+pub fn draw_process_icon(theme: UiTheme, cx: f32, cy: f32, size: f32, proc: CityProcess) {
+    let u = (size * 2.0) / 10.0;
+    let dark = Color::from_rgba(16, 20, 30, 240);
+    let accent = match proc {
+        CityProcess::FoodFocus => Color::from_rgba(88, 224, 108, 255),
+        CityProcess::ProductionReserve => Color::from_rgba(244, 166, 62, 255),
+        CityProcess::Wealth => Color::from_rgba(255, 214, 66, 255),
+        CityProcess::Research => Color::from_rgba(74, 214, 255, 255),
+        CityProcess::Culture => Color::from_rgba(204, 128, 250, 255),
+        CityProcess::Nothing => Color::from_rgba(154, 166, 186, 255),
+    };
+
+    if theme == UiTheme::PixelArt {
+        px_rect(cx, cy, u, -4.6, -4.6, 9.2, 9.2, dark);
+        px_rect(cx, cy, u, -4.0, -4.0, 8.0, 8.0, accent);
+        px_rect(cx, cy, u, -3.3, -3.3, 6.6, 6.6, Color::from_rgba(22, 28, 42, 255));
+        match proc {
+            CityProcess::FoodFocus => {
+                // Pixel wheat sheaf / fruit emblem
+                px_rect(cx, cy, u, -0.6, -2.6, 1.2, 5.4, Color::from_rgba(240, 204, 82, 255));
+                px_rect(cx, cy, u, -2.2, -1.8, 1.6, 1.4, accent);
+                px_rect(cx, cy, u, 0.6, -1.8, 1.6, 1.4, accent);
+                px_rect(cx, cy, u, -2.2, 0.0, 1.6, 1.4, accent);
+                px_rect(cx, cy, u, 0.6, 0.0, 1.6, 1.4, accent);
+            }
+            CityProcess::ProductionReserve => {
+                // Pixel anvil / hammer reserve
+                px_rect(cx, cy, u, -2.6, -2.2, 5.2, 1.8, accent);
+                px_rect(cx, cy, u, -0.8, -0.4, 1.6, 3.0, Color::from_rgba(190, 144, 96, 255));
+                px_rect(cx, cy, u, -2.4, 1.8, 4.8, 1.0, Color::from_rgba(220, 228, 240, 255));
+            }
+            CityProcess::Wealth => {
+                // Pixel gold coin stack
+                px_rect(cx, cy, u, -2.4, -2.2, 4.8, 1.4, accent);
+                px_rect(cx, cy, u, -2.4, -0.4, 4.8, 1.4, Color::from_rgba(232, 178, 42, 255));
+                px_rect(cx, cy, u, -2.4, 1.4, 4.8, 1.4, accent);
+            }
+            CityProcess::Research => {
+                // Pixel science flask
+                px_rect(cx, cy, u, -1.0, -2.6, 2.0, 1.6, WHITE);
+                px_rect(cx, cy, u, -2.2, -1.0, 4.4, 1.6, accent);
+                px_rect(cx, cy, u, -2.8, 0.6, 5.6, 2.0, accent);
+            }
+            CityProcess::Culture => {
+                // Pixel star / festival emblem
+                px_rect(cx, cy, u, -0.9, -2.8, 1.8, 5.6, accent);
+                px_rect(cx, cy, u, -2.8, -0.9, 5.6, 1.8, accent);
+                px_rect(cx, cy, u, -1.4, -1.4, 2.8, 2.8, WHITE);
+            }
+            CityProcess::Nothing => {
+                // Pixel pause bars (Standby)
+                px_rect(cx, cy, u, -2.2, -2.4, 1.6, 4.8, accent);
+                px_rect(cx, cy, u, 0.6, -2.4, 1.6, 4.8, accent);
+            }
+        }
+    } else {
+        draw_circle(cx, cy, size * 0.86, Color::from_rgba(22, 28, 40, 240));
+        draw_circle_lines(cx, cy, size * 0.86, (size * 0.14).max(1.2), accent);
+        match proc {
+            CityProcess::FoodFocus => draw_circle(cx, cy, size * 0.44, accent),
+            CityProcess::ProductionReserve => {
+                draw_rectangle(cx - size * 0.44, cy - size * 0.36, size * 0.88, size * 0.72, accent);
+            }
+            CityProcess::Wealth => draw_poly(cx, cy, 6, size * 0.48, 0.0, accent),
+            CityProcess::Research => draw_poly(cx, cy, 3, size * 0.50, -90.0, accent),
+            CityProcess::Culture => draw_poly(cx, cy, 5, size * 0.50, -90.0, accent),
+            CityProcess::Nothing => {
+                draw_rectangle(cx - size * 0.36, cy - size * 0.38, size * 0.24, size * 0.76, accent);
+                draw_rectangle(cx + size * 0.12, cy - size * 0.38, size * 0.24, size * 0.76, accent);
+            }
         }
     }
 }

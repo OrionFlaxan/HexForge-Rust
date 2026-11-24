@@ -569,10 +569,65 @@ impl Yields {
     }
 }
 
+/// Continuous repeatable city focus or standby order (never clears at turn end; always unblocks turn guard).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CityProcess {
+    /// Convert 40% of City Production (min +2) into bonus Food per turn.
+    FoodFocus,
+    /// Bank 50% of City Production (min +2/t, cap 250P) into city reserve; overflows +25% into Gold when full.
+    ProductionReserve,
+    /// Convert 50% of City Production (min +2) into Gold per turn.
+    Wealth,
+    /// Convert 35% of City Production (min +2) into Science per turn.
+    Research,
+    /// Convert 35% of City Production (min +2) into Culture per turn.
+    Culture,
+    /// City rests idle cleanly while satisfying the mandatory pre-turn choice guard.
+    Nothing,
+}
+
+impl CityProcess {
+    pub const MAX_STOCKPILE: i32 = 250;
+
+    pub const ALL: [CityProcess; 6] = [
+        CityProcess::FoodFocus,
+        CityProcess::ProductionReserve,
+        CityProcess::Wealth,
+        CityProcess::Research,
+        CityProcess::Culture,
+        CityProcess::Nothing,
+    ];
+
+    #[inline]
+    pub const fn name(self) -> &'static str {
+        match self {
+            CityProcess::FoodFocus => "Food Focus (Harvest)",
+            CityProcess::ProductionReserve => "Stockpile Production",
+            CityProcess::Wealth => "Produce Wealth (Gold)",
+            CityProcess::Research => "Produce Research (Sci)",
+            CityProcess::Culture => "Culture Festival",
+            CityProcess::Nothing => "Build Nothing (Standby)",
+        }
+    }
+
+    #[inline]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            CityProcess::FoodFocus => "Food Focus",
+            CityProcess::ProductionReserve => "Stockpile Prod",
+            CityProcess::Wealth => "Wealth",
+            CityProcess::Research => "Research",
+            CityProcess::Culture => "Culture",
+            CityProcess::Nothing => "Standby (Idle)",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProductionItem {
     Unit(UnitKindId),
     Building(BuildingId),
+    Process(CityProcess),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

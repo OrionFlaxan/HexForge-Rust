@@ -762,4 +762,75 @@ mod tests {
         assert_eq!(loaded.state_hash(), h_before);
         assert_eq!(loaded.turn, world.turn);
     }
+
+    #[test]
+    fn city_process_yields_stockpile_standby_and_save_roundtrip() {
+        use crate::types::CityProcess;
+        let rules = Ruleset::load_default();
+        let mut world = generate_world(
+            GameConfig {
+                size: MapSize::Small,
+                num_civs: 4,
+                seed: 77,
+                human_civ: Some(0),
+                turn_limit: 350,
+                rules: GameRules::default(),
+            },
+            &rules,
+        );
+        let cap = world.civs[0].capital;
+        let ci = cap as usize;
+        // Set a tech so only city production blocks End Turn
+        let first_tech = economy::pick_next_available_tech(world.civs[0].tech_bits, &rules).unwrap();
+        world.civs[0].current_tech = Some(first_tech);
+        assert_eq!(
+            economy::next_mandatory_choice(&world, &rules, 0, false),
+            Some(PendingChoice::ChooseProduction(cap))
+        );
+
+        let base_y = economy::compute_city_yields(&world, &rules, cap);
+
+        // 1. FoodFocus immediately increases net city food and persists across turn end
+        world.cities.producing[ci] = Some(ProductionItem::Process(CityProcess::FoodFocus));
+        assert_eq!(economy::next_mandatory_choice(&world, &rules, 0, false), None);
+        let food_y = economy::compute_city_yields(&world, &rules, cap);
+        assert!(food_y.food >= base_y.food + 2);
+
+        // 2. Wealth / Research / Culture conversions
+        world.cities.producing[ci] = Some(ProductionItem::Process(CityProcess::Wealth));
+        assert!(economy::compute_city_yields(&world, &rules, cap).gold >= base_y.gold + 2);
+        world.cities.producing[ci] = Some(ProductionItem::Process(CityProcess::Research));
+        assert!(economy::compute_city_yields(&world, &rules, cap).science >= base_y.science + 2);
+        world.cities.producing[ci] = Some(ProductionItem::Process(CityProcess::Culture));
+        assert!(economy::compute_city_yields(&world, &rules, cap).culture >= base_y.culture + 2);
+
+        // 3. Stockpile Production banks hammers up to MAX_STOCKPILE and overflows into Gold when full
+        world.cities.producing[ci] = Some(ProductionItem::Process(CityProcess::ProductionReserve));
+        world.cities.prod_stored[ci] = 0;
+        economy::process_civ_turn_end(&mut world, &rules, 0);
+        assert_eq!(
+            world.cities.producing[ci],
+            Some(ProductionItem::Process(CityProcess::ProductionReserve))
+        );
+        assert!(world.cities.prod_stored[ci] >= 2);
+        world.cities.prod_stored[ci] = CityProcess::MAX_STOCKPILE;
+        let full_y = economy::compute_city_yields(&world, &rules, cap);
+        assert!(full_y.gold >= base_y.gold + 1);
+
+        // 4. Build Nothing (Standby) satisfies mandatory turn guard, cannot be rush-bought, and survives save/load
+        world.cities.producing[ci] = Some(ProductionItem::Process(CityProcess::Nothing));
+        assert_eq!(economy::next_mandatory_choice(&world, &rules, 0, false), None);
+        assert!(!economy::rush_buy(&mut world, &rules, cap, ProductionItem::Process(CityProcess::Nothing)));
+        economy::process_civ_turn_end(&mut world, &rules, 0);
+        assert_eq!(
+            world.cities.producing[ci],
+            Some(ProductionItem::Process(CityProcess::Nothing))
+        );
+        let bytes = save_to_bytes(&world).expect("save with CityProcess failed");
+        let loaded = load_from_bytes(&bytes).expect("load with CityProcess failed");
+        assert_eq!(
+            loaded.cities.producing[ci],
+            Some(ProductionItem::Process(CityProcess::Nothing))
+        );
+    }
 }

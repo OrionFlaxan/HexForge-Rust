@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag name (e.g. v0.5.0)'
+        description: 'Release tag name (e.g. v0.5.1)'
         required: true
-        default: 'v0.5.0'
+        default: 'v0.5.1'
       prerelease:
         description: 'Mark as pre-release'
         required: false
@@ -125,29 +125,35 @@ jobs:
           fi
 
           cat <<'NOTESEOF' > release-notes.md
-          ## HexForge-Rust v0.5.0 — Pixel & Modern Dual UI Overhaul, 24 Historical Civilizations & Mandatory Turn Choices
+          ## HexForge-Rust v0.5.1 — City Focus & Build Nothing, Foreign Civ Unit Info & 2-Tap Move Confirm
 
-          Built from the ground up in **100% Pure Rust** (zero JVM, zero GC) for **Android (all 4 ABIs, API 21+, Portrait & Landscape)** and **Desktop**!
+          Built from the ground up in **100% Pure Rust** (zero JVM, zero GC) for **Android (all 4 ABIs, API 21+, Portrait & Landscape)** and **Desktop** — **100% save-compatible with `v0.5.0`**!
 
-          ### What's New in Update 0.5.0
-          - **Live-Switchable Dual UI Themes (`PIXEL ART` & `MODERN SIMPLE`) + Procedural Sprites:**
-            - Toggle anytime in **Options** (`options.toml`) between **Pixel Art (Retro 4X)** (crisp beveled RPG HUD frames, dithered pixel terrain, stepped pixel mountains & pine forests, and procedural 12×12 pixel-art sprites for every unit role, era, city, and tile improvement) and **Modern Simple (Clean)** (flat high-contrast vector cards and clean geometric icons).
-            - Miniature procedural sprites now appear right inside the **City Production Tabs** and **Worker Actions Sheet**!
-          - **24 Authentic Historical Civilizations with Leaders, Detailed Buffs, 24 Unique Units & 24 Unique Buildings:**
-            - Play or battle against **24 iconic historical empires** (*Rome, Egypt, China, Japan, England, France, Germany, Greece, Persia, India, Mongolia, Russia, Arabia, Inca, Aztec, Carthage, Byzantium, Spain, Ottomans, Babylon, Korea, America, Norway, Indonesia*) — each featuring its real **Leader**, **detailed gameplay buffs** (*Japan Bushido* full strength when wounded, *Babylon* starts with *Writing*, *Norway* starts with *Sailing* + extra pillage gold, *Egypt/France* Wonder speed, *Rome/Inca* `-1t` Worker speed, *Germany* Rush-Buy discount, and more!), a **Civ-exclusive Unique Unit (UU)** (*Legion, Samurai, Keshik, Longbowman Range 3, Panzer, Chu-Ko-Nu, Kris Swordsman, Hwach'a...*), and a **Civ-exclusive Unique Building (UB)** (*Roman Forum, Paper Maker, Dojo, Hanse, Bazaar, Seowon, Candi, Walls of Babylon...*).
-            - Upgraded `BuildingBits` to **`u128`** (zero heap allocation, O(1) bitmask across all **62 structures** = 26 base + 12 World Wonders + 24 Unique Buildings) and expanded **82 total units**.
-          - **Mandatory Pre-Turn Choice Blocker (Never Forget Research or Production Again!):**
-            - The bottom-right thumb button automatically transforms into **`CHOOSE TECH`** (opens Tech Tree to an unlocked era immediately) or **`BUILD: <City>`** (focuses camera on the idle city and opens its production tabs), only turning green as **`END TURN *`** once all targets are set (also blocks accidental `Space`/`Enter` skips, with optional **Force Policy Pick** toggle in Options).
+          ### What's Fixed & New in Update 0.5.1
+          - **Repeatable City Focus Projects & `BUILD NOTHING` (Zero Soft-Locks!):**
+            - Added a 5th **`FOCUS`** tab inside every City modal (`UNITS | BLDGS | WONDR | FOCUS | BUILT`) plus a permanent 1-tap **`BUILD NOTHING`** footer button so a city can *never* block End Turn when nothing else needs to be built:
+              - **Food Focus (Harvest):** Converts `40%` of City Production (min `+2`) into bonus **+Food/turn**.
+              - **Stockpile Production:** Banks `50%` of City Production/turn (min `+2/t`, up to `250P` reserve) toward your next Unit/Building/Wonder (overflows `+25%` into Gold when full!).
+              - **Produce Wealth / Research / Culture Festival:** Converts Production continuously into **+Gold**, **+Science**, or **+Culture** per turn.
+              - **Build Nothing (Standby):** Keeps the city idle cleanly while satisfying the mandatory turn guard.
+            - Auto-selects a non-empty tab whenever **`BUILD: <City>`** opens the City modal, and updates top-bar empire yields instantly on selection.
+          - **Civilization Ownership & Diplomacy Info on Foreign Units, Cities & Territory:**
+            - Tapping any foreign unit or city now displays its **Civ Color Swatch**, **Civilization Name**, **Leader**, color-coded **`[AT WAR]` / `[PEACE]`** status, and a 1-tap **`DIPLOMACY`** shortcut!
+            - Zooming in shows a crisp 3-letter **Civ tag badge** below foreign map units (crimson border when at War), empty owned tiles display whose territory they belong to, and fog-of-war prevents tapping unseen units.
+          - **Double-Tap Move/Attack Confirm & Double-Tap Unit Deselect (Zero Accidental Moves!):**
+            - **`Confirm Move: 2-TAP`** is now **ON by default** (toggleable to `1-TAP` in **Options**):
+              - **1st tap** on a reachable or attackable hex previews the full glowing path + target reticle (`TAP AGAIN: MOVE` / `TAP AGAIN: ATTACK`) and shows **`CONFIRM`** / **`CANCEL`** buttons in the bottom bar.
+              - **2nd tap** on the same hex (or tapping **`CONFIRM`**) executes immediately; tapping a different valid hex shifts the preview without moving.
+            - **Double-tap your selected unit** (or tap **`DESELECT`**) to cleanly clear selection & highlights so you can pan around freely again, plus a quick **`CITY`** button when garrisoned on your own city!
 
           ### Included Downloads
-          - **`HexForge-Rust-Android.apk`** (~8.2 MB) — Universal Android 5.0+ APK with all 4 stripped ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`). Installs **side-by-side** alongside Unciv (`com.orionflaxan.hexforge`) — updates cleanly over v0.4.0!
+          - **`HexForge-Rust-Android.apk`** (~8.2 MB) — Universal Android 5.0+ APK with all 4 stripped ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`, `x86`). Installs **side-by-side** alongside Unciv (`com.orionflaxan.hexforge`) — updates cleanly over `v0.5.0` while keeping your saved games!
           - **`HexForge-Rust-Linux-x86_64`** (~2.1 MB) — Standalone native Linux Desktop binary.
           - **`HexForge-Bench-Linux-x86_64`** (~1.3 MB) — Headless 350-turn stress benchmark CLI.
 
-          ### Verified 350-Turn Huge Map Performance (4,992 Tiles, Historical Civs & Uniques)
+          ### Verified 350-Turn Huge Map Performance (4,992 Tiles, 24 Historical Civs & Uniques)
           - **Huge 22-Civ (115 Cities, 958 Formations / 1,442 Unit-Equiv):** **`2.24 seconds`** total (**`6.34 ms/turn`** mean; **`8.99 ms/turn`** in Turns 301–350) | **Speculative AI (95.0% hit):** **`3.26 ms/turn`** overall
           - **Huge ALL 24-Civ (131 Cities, 1,058 Formations / 1,530 Unit-Equiv):** **`2.52 seconds`** total (**`7.14 ms/turn`** mean; **`9.60 ms/turn`** in Turns 301–350)
-          - **Large 16-Civ (61 Cities, 572 Formations):** **`1.40 seconds`** total (**`3.97 ms/turn`** parallel / **`1.70 ms/turn`** speculative)
           - **Turn-351 Save / Load (v4):** **`2.56–3.54 ms`** save (`128–132 KB`) / **`2.66–2.72 ms`** load
           - **Strict Determinism:** 1-thread and multi-thread 350-turn Huge simulations produce 100% bit-for-bit identical worlds (`0x9abb8dee13d2601a`).
           NOTESEOF

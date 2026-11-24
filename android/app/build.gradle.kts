@@ -10,8 +10,8 @@ android {
         applicationId = "com.orionflaxan.hexforge"
         minSdk = 21
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.5.1"
         base.archivesName.set("HexForge-Rust")
     }
 

@@ -9,7 +9,7 @@
 
 ---
 
-## Download (v0.5.0)
+## Download (v0.5.1)
 
 | Platform | Direct Download | Size | Notes |
 |---|---|---:|---|
@@ -20,16 +20,18 @@
 
 ---
 
-## What's Inside (v0.5.0)
+## What's Inside (v0.5.1)
 
 - **Dual Live-Switchable UI Themes (`PIXEL ART` & `MODERN SIMPLE`) + Procedural Sprites:**
   - Switch live in **Options** (`options.toml`) between **Pixel Art (Retro 4X)** (beveled RPG HUD panels, dithered pixel terrain, stepped pixel mountains & forests, procedural 12×12 unit/city/improvement pixel sprites) and **Modern Simple (Clean)** (flat minimal high-contrast cards & geometric vector icons).
   - Miniature procedural sprites appear directly inside **City Production Tabs** and the **Worker Actions Sheet**!
 - **24 Authentic Historical Civilizations with Leaders, Detailed Buffs, 24 Unique Units & 24 Unique Buildings:**
-  - Play as or battle **24 historical empires** (*Rome, Egypt, China, Japan, England, France, Germany, Greece, Persia, India, Mongolia, Russia, Arabia, Inca, Aztec, Carthage, Byzantium, Spain, Ottomans, Babylon, Korea, America, Norway, Indonesia*) — each with a historical **Leader**, **detailed gameplay buffs** (*Japan Bushido* full strength when wounded, *Babylon* starts with *Writing*, *Norway* starts with *Sailing* + extra pillage gold, *Egypt/France* Wonder speed, *Rome/Inca* `-1t` Worker speed, *Germany* Rush-Buy discount, and more!), a **Civ-exclusive Unique Unit (UU)**, and a **Civ-exclusive Unique Building (UB)** (`u128` O(1) `BuildingBits` supporting all **62 structures** & **82 units**!).
-- **Mandatory Pre-Turn Choice Blocker (Never Forget Research or Production Again!):**
-  - The bottom-right button automatically transforms into **`CHOOSE TECH`** or **`BUILD: <City>`** (focusing the camera & opening that city) whenever research or production is unset, turning green as **`END TURN *`** only once every target is set (plus optional **Force Policy Pick** toggle in Options).
-- **Separated City Production Tabs (`UNITS` | `BLDGS` | `WONDERS` | `BUILT`) & 16 Realistic Tile Improvements:**
+  - Play as or battle **24 historical empires** (*Rome, Egypt, China, Japan, England, France, Germany, Greece, Persia, India, Mongolia, Russia, Arabia, Inca, Aztec, Carthage, Byzantium, Spain, Ottomans, Babylon, Korea, America, Norway, Indonesia*) — each with a historical **Leader**, **detailed gameplay buffs**, a **Civ-exclusive Unique Unit (UU)**, and a **Civ-exclusive Unique Building (UB)** (`u128` O(1) `BuildingBits` supporting **62 structures** & **82 units**!).
+  - Inspecting any foreign unit, city, or territory tile clearly displays its **Civilization Name, Leader, Civ Color Bar, `[AT WAR]`/`[PEACE]` badge**, and a quick **`DIPLOMACY`** shortcut (plus zoomed-in 3-letter Civ map badges).
+- **Double-Tap Move Confirm, Double-Tap Unit Deselect & Smart Mandatory Turn Guard:**
+  - **`Confirm Move: 2-TAP`** (ON by default, toggleable in Options) previews the full glowing movement/attack path on tap 1 and executes on tap 2 (or via **`CONFIRM`**) so you never mis-tap a unit; double-tap your selected unit (or tap **`DESELECT`**) to pan freely again!
+  - Bottom-right button automatically transforms into **`CHOOSE TECH`** or **`BUILD: <City>`** before turning green as **`END TURN *`** — paired with a dedicated **`FOCUS`** tab (**Food Focus, Stockpile Production, Wealth, Research, Culture Festival, Build Nothing**) and a 1-tap **`BUILD NOTHING`** button so cities can never soft-lock!
+- **5 Separated City Tabs (`UNITS` | `BLDGS` | `WONDR` | `FOCUS` | `BUILT`) & 16 Realistic Tile Improvements:**
   - Multi-turn builds (`1–4t`), **Chop Forest (`+20P`)**, **Clear Jungle**, **Drain Marsh (`→ Grassland`)**, **Roads & Railroads (`+15% City Prod`)**, **Forts & Forward Airbases (`+50% Def` + Air Rebase)**, **Combat Pillaging & Repair**, and **`AUTO WORK`**.
 - **Full 9 Eras, 76 Technologies (`u128` Bitmask), 82 Units, 12 World Wonders & 20 Social Policies:**
   - Complete 9-Era arc (**Ancient → Classical → Medieval → Renaissance → Industrial → Modern → Atomic → Information → Future**), 4 Victory Paths, Difficulty (`Settler`–`Deity`), Game Speed (`Quick`–`Marathon`), 4 Map Types, 8 Start Eras, and a 5-tab **Rules & Codex**.
