@@ -42,6 +42,12 @@ pub fn unit_effective_strength(
     if def.role == UnitRole::Cavalry {
         pct_mod += tpl.cavalry_pct as i32;
     }
+    if matches!(def.role, UnitRole::Ranged | UnitRole::Siege | UnitRole::Air) {
+        pct_mod += tpl.ranged_pct as i32;
+    }
+    if def.role == UnitRole::Naval {
+        pct_mod += tpl.naval_pct as i32;
+    }
     if !cs.is_human && world.config.human_civ.is_some() {
         pct_mod += world.config.rules.difficulty.ai_combat_pct();
     }
@@ -61,12 +67,17 @@ pub fn unit_effective_strength(
     }
 
     let hp = world.units.hp[i].clamp(1, 100) as i32;
-    let hp_scale = 65 + (hp * 35) / 100;
+    // Japan Bushido: units fight at 100% strength even when heavily wounded!
+    let hp_scale = if tpl.full_strength_when_wounded {
+        100
+    } else {
+        65 + (hp * 35) / 100
+    };
     strength = (strength * pct_mod.max(40) / 100) * hp_scale / 100;
     strength.max(1)
 }
 
-/// Effective defensive strength of a city (base + pop + buildings/wonders + policies + garrison).
+/// Effective defensive strength of a city (base + pop + buildings/wonders + civ trait + policies + garrison).
 #[inline]
 pub fn city_defense_strength(world: &World, rules: &Ruleset, city: CityId) -> i32 {
     let ci = city as usize;
@@ -76,12 +87,14 @@ pub fn city_defense_strength(world: &World, rules: &Ruleset, city: CityId) -> i3
     }
     let bbits = world.cities.buildings[ci];
     for b in &rules.buildings {
-        if (bbits & (1u64 << b.id)) != 0 {
+        if (bbits & (1u128 << b.id)) != 0 {
             s += b.defense as i32;
         }
     }
-    let pbonus = aggregate_policy_bonuses(rules, world.civs[world.cities.civ[ci] as usize].policy_bits);
-    s += pbonus.city_defense as i32;
+    let cs = &world.civs[world.cities.civ[ci] as usize];
+    let tpl = &rules.civs[cs.template_idx as usize];
+    let pbonus = aggregate_policy_bonuses(rules, cs.policy_bits);
+    s += (tpl.city_defense as i32) + (pbonus.city_defense as i32);
 
     if world.map.elevation[world.cities.pos[ci] as usize] == crate::types::Elevation::Hill {
         s += 4;

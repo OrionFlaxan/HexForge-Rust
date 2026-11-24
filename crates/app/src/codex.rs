@@ -73,19 +73,20 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
                 (false, WHITE, "- Science: Research Orbital Colonization & build Orbital Launch Complex.".into()),
                 (false, WHITE, "- Culture: Adopt 12 Social Policies (3 full Policy Trees) via Culture.".into()),
                 (false, WHITE, "- Score: Hold the highest Empire Score at the Turn Limit.".into()),
-                (true, ACCENT_GOLD, "2. CONTROLS & CITY TABS".into()),
+                (true, ACCENT_GOLD, "2. CONTROLS, UI THEMES & MANDATORY TURN GUARD".into()),
                 (false, WHITE, "- Drag with 1 finger to pan; pinch with 2 fingers to zoom.".into()),
                 (false, WHITE, "- Tap a unit to highlight Cyan move hexes & Red attack targets.".into()),
-                (false, WHITE, "- Tap a friendly City twice (or tap MANAGE CITY) for separate".into()),
-                (false, ACCENT_CYAN, "    UNITS | BUILDINGS | WONDERS | BUILT production tabs!".into()),
-                (false, WHITE, "- Tap END TURN (green * means Background AI is already precomputed!).".into()),
+                (false, ACCENT_GOLD, "- Smart Turn Guard: bottom-right button shows CHOOSE TECH or BUILD: <City>".into()),
+                (false, WHITE, "    so you NEVER forget research or city production before ending a turn!".into()),
+                (false, ACCENT_CYAN, "- Options -> UI Theme switches live between PIXEL ART and MODERN SIMPLE!".into()),
+                (false, WHITE, "- Tap a friendly City for UNITS | BLDGS | WONDERS | BUILT production tabs!".into()),
                 (true, ACCENT_GOLD, "3. REALISTIC WORKERS, ENGINEERING & PILLAGING".into()),
                 (false, WHITE, "- Select a Worker -> tap IMPROVE... to choose any realistic tile build,".into()),
                 (false, WHITE, "    or toggle AUTO WORK so late-game workers manage tiles automatically!".into()),
-                (false, WHITE, "- Multi-turn builds (1-4t) are sped up by Great Pyramids & Citizenship.".into()),
+                (false, WHITE, "- Multi-turn builds (1-4t) are sped up by Rome/Inca, Pyramids & Citizenship.".into()),
                 (false, WHITE, "- Chop Forest (+20 Prod to nearest city!), Clear Jungle, Drain Marsh.".into()),
                 (false, WHITE, "- Roads (The Wheel) give 2x speed; Railroads add +15% City Production!".into()),
-                (false, WHITE, "- Combat units can PILLAGE enemy tiles (+20G & +20 HP); Workers Repair!".into()),
+                (false, WHITE, "- Combat units can PILLAGE enemy tiles (+20G+ & +20 HP); Workers Repair!".into()),
                 (true, ACCENT_CYAN, "4. ALL 16 REALISTIC TILE IMPROVEMENTS".into()),
             ];
             for &imp in &hexforge_sim::types::Improvement::ALL {
@@ -112,7 +113,7 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
             (false, ACCENT_CYAN, "- Fort & Forward Airbase: +50% Defense (can be built on borders!).".into()),
             (false, WHITE, "- Fortify: +20% Defense and heals +18 HP/turn in friendly borders.".into()),
             (false, WHITE, "- Flanking: +8% Attack per additional friendly melee/cavalry adjacent.".into()),
-            (false, WHITE, "- Pillaging: Spend 1 Move on an enemy improvement -> +20G & +20 HP!".into()),
+            (false, WHITE, "- Pillaging: Spend 1 Move on an enemy improvement -> +20G (+Civ bonus) & +20 HP!".into()),
             (false, WHITE, "- Promotions: +5% Combat Strength per 30 XP earned (up to +25%).".into()),
             (true, ACCENT_CYAN, "2. CORPS & ARMIES (ANTI-LAG ELITE STACKING)".into()),
             (false, WHITE, "- Unlock Steel (Medieval) -> Merge 2 identical units into CORPS:".into()),
@@ -130,7 +131,7 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
             let mut v = vec![(
                 true,
                 ACCENT_GOLD,
-                format!("ALL {} UNITS ACROSS 9 ERAS (LIVE FROM RULESET)", rules.units.len()),
+                format!("ALL {} UNITS (58 BASE + 24 CIV UNIQUES ACROSS 9 ERAS)", rules.units.len()),
             )];
             for u in &rules.units {
                 let tech_name = u
@@ -142,13 +143,18 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
                 } else {
                     format!("CS {}", u.strength)
                 };
+                let uniq_tag = u
+                    .unique_to_civ
+                    .map(|c| format!(" [UNIQUE: {}]", rules.civs[c as usize].name))
+                    .unwrap_or_default();
                 v.push((
                     false,
-                    WHITE,
+                    if u.unique_to_civ.is_some() { ACCENT_GOLD } else { WHITE },
                     format!(
-                        "[{}] {} — {} | Mov {} | Cost {} | {}",
+                        "[{}] {}{} — {} | Mov {} | Cost {} | {}",
                         u.role.name(),
                         u.name,
+                        uniq_tag,
                         cs_str,
                         u.moves,
                         u.cost,
@@ -160,10 +166,14 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
         }
         CodexTab::TechsWonders => {
             let wonders_n = rules.buildings.iter().filter(|b| b.is_wonder).count();
+            let ubs_n = rules.buildings.iter().filter(|b| b.unique_to_civ.is_some()).count();
             let mut v = vec![(
                 true,
                 ACCENT_GOLD,
-                format!("{wonders_n} UNIQUE WORLD WONDERS ({} TOTAL STRUCTURES)", rules.buildings.len()),
+                format!(
+                    "{wonders_n} WORLD WONDERS + {ubs_n} CIV UNIQUE BUILDINGS ({} TOTAL)",
+                    rules.buildings.len()
+                ),
             )];
             for b in &rules.buildings {
                 if !b.is_wonder {
@@ -225,9 +235,48 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
         CodexTab::CivsPolicies => {
             let mut v = vec![(
                 true,
+                ACCENT_GOLD,
+                format!("{} HISTORICAL CIVILIZATIONS (LEADERS, BUFFS, UU & UB)", rules.civs.len()),
+            )];
+            for c in &rules.civs {
+                let uu = c
+                    .unique_unit
+                    .map(|id| {
+                        let u = &rules.units[id as usize];
+                        let rep = u
+                            .replaces
+                            .map(|r| format!(" ({})", rules.units[r as usize].name))
+                            .unwrap_or_default();
+                        format!("{}{}", u.name, rep)
+                    })
+                    .unwrap_or_else(|| "None".into());
+                let ub = c
+                    .unique_building
+                    .map(|id| {
+                        let b = &rules.buildings[id as usize];
+                        let rep = b
+                            .replaces
+                            .map(|r| format!(" ({})", rules.buildings[r as usize].name))
+                            .unwrap_or_default();
+                        format!("{}{}", b.name, rep)
+                    })
+                    .unwrap_or_else(|| "None".into());
+                v.push((
+                    false,
+                    ACCENT_GOLD,
+                    format!("{} ({}) — {}: {}", c.name, c.leader, c.trait_name, c.trait_desc),
+                ));
+                v.push((
+                    false,
+                    ACCENT_CYAN,
+                    format!("    UU: {}   |   UB: {}", uu, ub),
+                ));
+            }
+            v.push((
+                true,
                 ACCENT_PURPLE,
                 format!("5 SOCIAL POLICY TREES ({} POLICIES — 12 = CULTURE WIN)", rules.policies.len()),
-            )];
+            ));
             for p in &rules.policies {
                 v.push((
                     false,
@@ -238,18 +287,6 @@ pub fn draw_codex_modal(ui: &UiMetrics, rules: &Ruleset, state: &mut CodexState)
                         p.name,
                         p.desc
                     ),
-                ));
-            }
-            v.push((
-                true,
-                ACCENT_GOLD,
-                "22 CIVILIZATIONS & UNIQUE TRAITS".into(),
-            ));
-            for c in &rules.civs {
-                v.push((
-                    false,
-                    WHITE,
-                    format!("{} — {}: {}", c.name, c.trait_name, c.trait_desc),
                 ));
             }
             v

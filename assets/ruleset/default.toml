@@ -1369,8 +1369,407 @@ upkeep = 9
 tech = "orbital_colonization"
 city_attack_bonus = 80
 
+# --- HISTORICAL UNIQUE UNITS (24 — 1 exclusive unit per Civilization!) ---
+[[units]]
+id = "uu_legion"
+name = "Legion"
+role = "melee"
+cost = 72
+strength = 18
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "iron_working"
+upgrades_to = "longswordsman"
+city_attack_bonus = 15
+unique_to_civ = "Rome"
+replaces = "swordsman"
 
-# ==================== BUILDINGS (26) & UNIQUE WORLD WONDERS (12) ====================
+[[units]]
+id = "uu_war_chariot"
+name = "War Chariot"
+role = "ranged"
+cost = 54
+strength = 8
+ranged_strength = 12
+range = 2
+moves = 5
+sight = 2
+upkeep = 1
+tech = "wheel"
+upgrades_to = "knight"
+unique_to_civ = "Egypt"
+replaces = "chariot_archer"
+
+[[units]]
+id = "uu_chu_ko_nu"
+name = "Chu-Ko-Nu"
+role = "ranged"
+cost = 115
+strength = 14
+ranged_strength = 24
+range = 2
+moves = 2
+sight = 2
+upkeep = 2
+tech = "machinery"
+upgrades_to = "gatling_gun"
+city_attack_bonus = 15
+unique_to_civ = "China"
+replaces = "crossbowman"
+
+[[units]]
+id = "uu_samurai"
+name = "Samurai"
+role = "melee"
+cost = 110
+strength = 25
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "steel"
+upgrades_to = "musketman"
+city_attack_bonus = 15
+starting_xp = 15
+unique_to_civ = "Japan"
+replaces = "longswordsman"
+
+[[units]]
+id = "uu_longbowman"
+name = "Longbowman"
+role = "ranged"
+cost = 115
+strength = 13
+ranged_strength = 21
+range = 3
+moves = 2
+sight = 2
+upkeep = 2
+tech = "machinery"
+upgrades_to = "gatling_gun"
+unique_to_civ = "England"
+replaces = "crossbowman"
+
+[[units]]
+id = "uu_musketeer"
+name = "Musketeer"
+role = "melee"
+cost = 138
+strength = 30
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 3
+tech = "gunpowder"
+upgrades_to = "rifleman"
+unique_to_civ = "France"
+replaces = "musketman"
+
+[[units]]
+id = "uu_panzer"
+name = "Panzer"
+role = "cavalry"
+cost = 345
+strength = 78
+ranged_strength = 0
+range = 0
+moves = 6
+sight = 3
+upkeep = 6
+tech = "combined_arms"
+upgrades_to = "modern_armor"
+city_attack_bonus = 15
+unique_to_civ = "Germany"
+replaces = "tank"
+
+[[units]]
+id = "uu_hoplite"
+name = "Hoplite"
+role = "melee"
+cost = 52
+strength = 15
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+tech = "bronze_working"
+upgrades_to = "pikeman"
+unique_to_civ = "Greece"
+replaces = "spearman"
+
+[[units]]
+id = "uu_immortal"
+name = "Immortal"
+role = "melee"
+cost = 52
+strength = 14
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+tech = "bronze_working"
+upgrades_to = "pikeman"
+city_attack_bonus = 20
+unique_to_civ = "Persia"
+replaces = "spearman"
+
+[[units]]
+id = "uu_war_elephant"
+name = "War Elephant"
+role = "ranged"
+cost = 64
+strength = 12
+ranged_strength = 13
+range = 2
+moves = 3
+sight = 2
+upkeep = 1
+tech = "wheel"
+upgrades_to = "knight"
+city_attack_bonus = 15
+unique_to_civ = "India"
+replaces = "chariot_archer"
+
+[[units]]
+id = "uu_keshik"
+name = "Keshik"
+role = "cavalry"
+cost = 120
+strength = 22
+ranged_strength = 22
+range = 2
+moves = 5
+sight = 3
+upkeep = 3
+tech = "chivalry"
+upgrades_to = "cavalry"
+unique_to_civ = "Mongolia"
+replaces = "knight"
+
+[[units]]
+id = "uu_cossack"
+name = "Cossack"
+role = "cavalry"
+cost = 215
+strength = 42
+ranged_strength = 0
+range = 0
+moves = 5
+sight = 2
+upkeep = 4
+tech = "rifling"
+upgrades_to = "landship"
+unique_to_civ = "Russia"
+replaces = "cavalry"
+
+[[units]]
+id = "uu_camel_archer"
+name = "Camel Archer"
+role = "cavalry"
+cost = 120
+strength = 20
+ranged_strength = 24
+range = 2
+moves = 4
+sight = 2
+upkeep = 3
+tech = "chivalry"
+upgrades_to = "cavalry"
+unique_to_civ = "Arabia"
+replaces = "knight"
+
+[[units]]
+id = "uu_slinger"
+name = "Slinger"
+role = "ranged"
+cost = 42
+strength = 7
+ranged_strength = 10
+range = 2
+moves = 3
+sight = 2
+upkeep = 1
+tech = "archery"
+upgrades_to = "composite_bow"
+unique_to_civ = "Inca"
+replaces = "archer"
+
+[[units]]
+id = "uu_jaguar"
+name = "Jaguar"
+role = "melee"
+cost = 40
+strength = 12
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 1
+upgrades_to = "swordsman"
+city_attack_bonus = 15
+unique_to_civ = "Aztec"
+replaces = "warrior"
+
+[[units]]
+id = "uu_forest_elephant"
+name = "Forest Elephant"
+role = "cavalry"
+cost = 78
+strength = 18
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 2
+upkeep = 2
+tech = "horseback_riding"
+upgrades_to = "knight"
+city_attack_bonus = 15
+unique_to_civ = "Carthage"
+replaces = "horseman"
+
+[[units]]
+id = "uu_cataphract"
+name = "Cataphract"
+role = "cavalry"
+cost = 74
+strength = 18
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 2
+upkeep = 2
+tech = "horseback_riding"
+upgrades_to = "knight"
+city_attack_bonus = 15
+unique_to_civ = "Byzantium"
+replaces = "horseman"
+
+[[units]]
+id = "uu_tercio"
+name = "Tercio"
+role = "melee"
+cost = 138
+strength = 29
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 3
+tech = "gunpowder"
+upgrades_to = "rifleman"
+unique_to_civ = "Spain"
+replaces = "musketman"
+
+[[units]]
+id = "uu_janissary"
+name = "Janissary"
+role = "melee"
+cost = 138
+strength = 29
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 3
+tech = "gunpowder"
+upgrades_to = "rifleman"
+city_attack_bonus = 25
+unique_to_civ = "Ottomans"
+replaces = "musketman"
+
+[[units]]
+id = "uu_bowman"
+name = "Bowman"
+role = "ranged"
+cost = 45
+strength = 8
+ranged_strength = 11
+range = 2
+moves = 2
+sight = 2
+upkeep = 1
+tech = "archery"
+upgrades_to = "composite_bow"
+unique_to_civ = "Babylon"
+replaces = "archer"
+
+[[units]]
+id = "uu_hwacha"
+name = "Hwach'a"
+role = "siege"
+cost = 120
+strength = 12
+ranged_strength = 28
+range = 2
+moves = 2
+sight = 2
+upkeep = 2
+tech = "physics"
+upgrades_to = "cannon"
+city_attack_bonus = 75
+unique_to_civ = "Korea"
+replaces = "trebuchet"
+
+[[units]]
+id = "uu_minuteman"
+name = "Minuteman"
+role = "melee"
+cost = 135
+strength = 27
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 3
+upkeep = 3
+tech = "gunpowder"
+upgrades_to = "rifleman"
+unique_to_civ = "America"
+replaces = "musketman"
+
+[[units]]
+id = "uu_berserker"
+name = "Berserker"
+role = "melee"
+cost = 110
+strength = 25
+ranged_strength = 0
+range = 0
+moves = 3
+sight = 2
+upkeep = 2
+tech = "steel"
+upgrades_to = "musketman"
+city_attack_bonus = 20
+unique_to_civ = "Norway"
+replaces = "longswordsman"
+
+[[units]]
+id = "uu_kris_swordsman"
+name = "Kris Swordsman"
+role = "melee"
+cost = 70
+strength = 18
+ranged_strength = 0
+range = 0
+moves = 2
+sight = 2
+upkeep = 2
+tech = "iron_working"
+upgrades_to = "longswordsman"
+city_attack_bonus = 15
+starting_xp = 15
+unique_to_civ = "Indonesia"
+replaces = "swordsman"
+
+
+# ==================== BUILDINGS (26), WORLD WONDERS (12) & UNIQUE BUILDINGS (24) ====================
 
 [[buildings]]
 id = "monument"
@@ -1735,6 +2134,288 @@ culture = 6
 tech = "robotics"
 is_wonder = true
 
+# --- HISTORICAL UNIQUE BUILDINGS (24 — 1 exclusive structure per Civilization!) ---
+[[buildings]]
+id = "ub_forum"
+name = "Roman Forum"
+cost = 90
+upkeep = 0
+gold = 4
+gold_pct = 25
+production = 2
+tech = "currency"
+unique_to_civ = "Rome"
+replaces = "market"
+
+[[buildings]]
+id = "ub_burial_tomb"
+name = "Burial Tomb"
+cost = 90
+upkeep = 0
+culture = 4
+gold = 2
+tech = "calendar"
+unique_to_civ = "Egypt"
+replaces = "amphitheater"
+
+[[buildings]]
+id = "ub_paper_maker"
+name = "Paper Maker"
+cost = 68
+upkeep = 0
+science = 3
+science_per_pop_half = true
+gold = 2
+tech = "writing"
+unique_to_civ = "China"
+replaces = "library"
+
+[[buildings]]
+id = "ub_dojo"
+name = "Dojo"
+cost = 145
+upkeep = 1
+supply = 3
+unit_xp = 25
+culture = 2
+tech = "steel"
+unique_to_civ = "Japan"
+replaces = "armory"
+
+[[buildings]]
+id = "ub_royal_exchange"
+name = "Royal Exchange"
+cost = 170
+upkeep = 0
+gold = 7
+gold_pct = 30
+science = 2
+tech = "banking"
+unique_to_civ = "England"
+replaces = "bank"
+
+[[buildings]]
+id = "ub_chateau"
+name = "Chateau"
+cost = 130
+upkeep = 0
+defense = 12
+culture = 4
+gold = 3
+tech = "chivalry"
+unique_to_civ = "France"
+replaces = "castle"
+
+[[buildings]]
+id = "ub_hanse"
+name = "Hanse"
+cost = 170
+upkeep = 0
+gold = 6
+gold_pct = 20
+production_pct = 20
+tech = "banking"
+unique_to_civ = "Germany"
+replaces = "bank"
+
+[[buildings]]
+id = "ub_acropolis"
+name = "Acropolis"
+cost = 90
+upkeep = 0
+culture = 5
+defense = 4
+tech = "calendar"
+unique_to_civ = "Greece"
+replaces = "amphitheater"
+
+[[buildings]]
+id = "ub_satraps_court"
+name = "Satrap's Court"
+cost = 170
+upkeep = 0
+gold = 6
+gold_pct = 30
+culture = 2
+tech = "banking"
+unique_to_civ = "Persia"
+replaces = "bank"
+
+[[buildings]]
+id = "ub_mughal_fort"
+name = "Mughal Fort"
+cost = 130
+upkeep = 0
+defense = 12
+culture = 3
+gold = 2
+tech = "chivalry"
+unique_to_civ = "India"
+replaces = "castle"
+
+[[buildings]]
+id = "ub_ger"
+name = "Ger"
+cost = 60
+upkeep = 0
+supply = 2
+unit_xp = 25
+food = 1
+tech = "bronze_working"
+unique_to_civ = "Mongolia"
+replaces = "barracks"
+
+[[buildings]]
+id = "ub_krepost"
+name = "Krepost"
+cost = 60
+upkeep = 1
+supply = 2
+unit_xp = 20
+defense = 4
+tech = "bronze_working"
+unique_to_civ = "Russia"
+replaces = "barracks"
+
+[[buildings]]
+id = "ub_bazaar"
+name = "Bazaar"
+cost = 90
+upkeep = 0
+gold = 5
+gold_pct = 30
+science = 2
+tech = "currency"
+unique_to_civ = "Arabia"
+replaces = "market"
+
+[[buildings]]
+id = "ub_tambo"
+name = "Tambo"
+cost = 72
+upkeep = 0
+food = 3
+production = 2
+gold = 2
+tech = "wheel"
+unique_to_civ = "Inca"
+replaces = "water_mill"
+
+[[buildings]]
+id = "ub_floating_gardens"
+name = "Floating Gardens"
+cost = 72
+upkeep = 1
+food = 4
+production = 2
+tech = "wheel"
+unique_to_civ = "Aztec"
+replaces = "water_mill"
+
+[[buildings]]
+id = "ub_cothon"
+name = "Cothon"
+cost = 90
+upkeep = 0
+gold = 4
+gold_pct = 25
+production = 2
+supply = 1
+tech = "currency"
+unique_to_civ = "Carthage"
+replaces = "market"
+
+[[buildings]]
+id = "ub_hippodrome"
+name = "Hippodrome"
+cost = 92
+upkeep = 0
+culture = 4
+gold = 2
+supply = 1
+tech = "calendar"
+unique_to_civ = "Byzantium"
+replaces = "amphitheater"
+
+[[buildings]]
+id = "ub_casa_contratacion"
+name = "Casa de Contratacion"
+cost = 170
+upkeep = 0
+gold = 7
+gold_pct = 30
+production = 2
+tech = "banking"
+unique_to_civ = "Spain"
+replaces = "bank"
+
+[[buildings]]
+id = "ub_hammam"
+name = "Hammam"
+cost = 105
+upkeep = 0
+food = 4
+culture = 2
+tech = "engineering"
+unique_to_civ = "Ottomans"
+replaces = "aqueduct"
+
+[[buildings]]
+id = "ub_walls_of_babylon"
+name = "Walls of Babylon"
+cost = 65
+upkeep = 0
+defense = 10
+science = 2
+tech = "masonry"
+unique_to_civ = "Babylon"
+replaces = "walls"
+
+[[buildings]]
+id = "ub_seowon"
+name = "Seowon"
+cost = 148
+upkeep = 1
+science = 6
+science_pct = 35
+tech = "education"
+unique_to_civ = "Korea"
+replaces = "university"
+
+[[buildings]]
+id = "ub_film_studio"
+name = "Film Studio"
+cost = 295
+upkeep = 2
+culture = 9
+gold = 4
+tech = "radio"
+unique_to_civ = "America"
+replaces = "broadcast_tower"
+
+[[buildings]]
+id = "ub_stave_church"
+name = "Stave Church"
+cost = 90
+upkeep = 0
+culture = 4
+production = 2
+tech = "calendar"
+unique_to_civ = "Norway"
+replaces = "amphitheater"
+
+[[buildings]]
+id = "ub_candi"
+name = "Candi"
+cost = 90
+upkeep = 0
+culture = 4
+food = 2
+gold = 2
+tech = "calendar"
+unique_to_civ = "Indonesia"
+replaces = "amphitheater"
+
 
 # ==================== SOCIAL POLICIES (20 across 5 Trees) ====================
 # Trees: 0=Tradition, 1=Liberty, 2=Honor, 3=Rationalism, 4=Industry
@@ -1911,291 +2592,364 @@ gold_pct = 20
 prod_pct = 15
 
 
-# ==================== CIVILIZATIONS (22 Distinct Empires with Unique Traits) ====================
+# ==================== HISTORICAL CIVILIZATIONS (24 Empires with Leaders, Detailed Buffs, UUs & UBs) ====================
 
 [[civs]]
-name = "Aurelia"
-color = [215, 58, 52]
+name = "Rome"
+leader = "Julius Caesar"
+color = [184, 34, 46]
 accent = [255, 214, 70]
-aggression = 70
-science_bias = 55
-expansion = 75
-trait_name = "Imperial Legions"
-trait_desc = "+15% Prod & +8% Combat"
+aggression = 74
+science_bias = 58
+expansion = 82
+trait_name = "Glory of Rome"
+trait_desc = "+15% Prod, +10% Combat, -1t Worker Speed"
 prod_pct = 15
-combat_pct = 8
-cities = ["Aurelia", "Valerium", "Ostia", "Ravenna", "Capua", "Verona", "Tarentum", "Mediolanum", "Aquileia", "Syracuse"]
+combat_pct = 10
+worker_speed_bonus = 1
+cities = ["Rome", "Antium", "Cumae", "Neapolis", "Ravenna", "Arretium", "Mediolanum", "Arpinum", "Circei", "Ostia"]
 
 [[civs]]
-name = "Valhalla"
-color = [45, 138, 224]
-accent = [225, 240, 255]
-aggression = 80
-science_bias = 45
-expansion = 70
-trait_name = "Longship Raiders"
-trait_desc = "+12% Combat & +2 Supply"
-combat_pct = 12
-supply_bonus = 2
-cities = ["Nidaros", "Skagerrak", "Bergen", "Uppsala", "Birka", "Jomsborg", "Ribe", "Aarhus", "Tromso", "Visby"]
-
-[[civs]]
-name = "Kemet"
+name = "Egypt"
+leader = "Ramesses II"
 color = [235, 195, 52]
 accent = [72, 46, 130]
 aggression = 45
 science_bias = 70
 expansion = 65
 trait_name = "Monument Builders"
-trait_desc = "+20% Prod & +2 Culture/City"
-prod_pct = 20
+trait_desc = "+25% Wonder Prod, +15% Prod, +2 Culture/City"
+wonder_prod_pct = 25
+prod_pct = 15
 city_culture = 2
 cities = ["Thebes", "Memphis", "Heliopolis", "Elephantine", "Alexandria", "Pi-Ramesses", "Giza", "Byblos", "Abydos", "Edfu"]
 
 [[civs]]
-name = "Celestia"
+name = "China"
+leader = "Wu Zetian"
 color = [46, 168, 114]
 accent = [250, 238, 170]
-aggression = 55
-science_bias = 80
-expansion = 75
-trait_name = "Mandate of Scholars"
-trait_desc = "+15% Science & +1 Food/City"
+aggression = 58
+science_bias = 82
+expansion = 76
+trait_name = "Art of War"
+trait_desc = "+15% Sci, +12% Ranged, +1 Food/City"
 sci_pct = 15
+ranged_pct = 12
 city_food = 1
-cities = ["Chang'an", "Luoyang", "Nanjing", "Hangzhou", "Chengdu", "Kaifeng", "Guangzhou", "Suzhou", "Xi'an", "Wuhan"]
+cities = ["Beijing", "Shanghai", "Guangzhou", "Nanjing", "Xian", "Chengdu", "Hangzhou", "Tianjin", "Kaifeng", "Luoyang"]
 
 [[civs]]
-name = "Avalon"
+name = "Japan"
+leader = "Oda Nobunaga"
+color = [235, 235, 240]
+accent = [208, 38, 48]
+aggression = 78
+science_bias = 68
+expansion = 66
+trait_name = "Bushido"
+trait_desc = "Full Combat Strength when wounded! +10% Combat"
+combat_pct = 10
+full_strength_when_wounded = true
+cities = ["Kyoto", "Osaka", "Tokyo", "Satsuma", "Kagoshima", "Nara", "Nagoya", "Izumo", "Nagasaki", "Sapporo"]
+
+[[civs]]
+name = "England"
+leader = "Elizabeth I"
 color = [180, 42, 74]
 accent = [245, 245, 248]
 aggression = 60
-science_bias = 70
+science_bias = 72
 expansion = 80
-trait_name = "Royal Armada"
-trait_desc = "+15% Gold & +10% Science"
+trait_name = "Sun Never Sets"
+trait_desc = "+20% Naval, +15% Gold, +10% Science"
+naval_pct = 20
 gold_pct = 15
 sci_pct = 10
-cities = ["Londinium", "York", "Canterbury", "Hastings", "Bristol", "Oxford", "Coventry", "Warwick", "Newcastle", "Dover"]
+cities = ["London", "York", "Nottingham", "Hastings", "Canterbury", "Coventry", "Warwick", "Newcastle", "Oxford", "Liverpool"]
 
 [[civs]]
-name = "Gallia"
-color = [56, 98, 214]
+name = "France"
+leader = "Napoleon"
+color = [52, 98, 214]
 accent = [245, 208, 76]
-aggression = 65
-science_bias = 65
-expansion = 65
-trait_name = "Grand Culture"
-trait_desc = "+3 Culture/City & +8% Combat"
+aggression = 68
+science_bias = 66
+expansion = 68
+trait_name = "Ancien Regime"
+trait_desc = "+3 Culture/City, +15% Wonder Prod, +10% Combat"
 city_culture = 3
-combat_pct = 8
-cities = ["Lutetia", "Orleans", "Lyon", "Reims", "Tours", "Marseille", "Chartres", "Avignon", "Rouen", "Bordeaux"]
+wonder_prod_pct = 15
+combat_pct = 10
+cities = ["Paris", "Orleans", "Lyon", "Troyes", "Tours", "Marseilles", "Chartres", "Avignon", "Rouen", "Bordeaux"]
 
 [[civs]]
-name = "Teutonia"
+name = "Germany"
+leader = "Bismarck"
 color = [108, 118, 132]
 accent = [240, 205, 65]
-aggression = 78
-science_bias = 72
-expansion = 68
-trait_name = "Iron Industry"
-trait_desc = "+20% Prod & +3 Supply Cap"
+aggression = 80
+science_bias = 74
+expansion = 70
+trait_name = "Furor Teutonicus"
+trait_desc = "+20% Prod, +4 Supply Cap, -15% Rush Cost"
 prod_pct = 20
-supply_bonus = 3
-cities = ["Aachen", "Hamburg", "Munich", "Cologne", "Frankfurt", "Nuremberg", "Dresden", "Leipzig", "Bremen", "Heidelberg"]
+supply_bonus = 4
+rush_discount_pct = 15
+cities = ["Berlin", "Hamburg", "Munich", "Cologne", "Frankfurt", "Essen", "Dortmund", "Stuttgart", "Dusseldorf", "Bremen"]
 
 [[civs]]
-name = "Hellenia"
+name = "Greece"
+leader = "Alexander"
 color = [102, 188, 240]
 accent = [255, 255, 255]
-aggression = 60
+aggression = 66
 science_bias = 78
-expansion = 70
-trait_name = "Hellenic Academy"
-trait_desc = "+15% Science & +2 Cult/City"
+expansion = 72
+trait_name = "Hellenic League"
+trait_desc = "+15% Sci, +2 Culture/City, +12% Cavalry"
 sci_pct = 15
 city_culture = 2
+cavalry_pct = 12
 cities = ["Athens", "Sparta", "Corinth", "Argos", "Knossos", "Mycenae", "Pharsalos", "Ephesus", "Rhodes", "Delphi"]
 
 [[civs]]
 name = "Persia"
+leader = "Darius I"
 color = [196, 62, 118]
 accent = [255, 212, 82]
 aggression = 72
-science_bias = 62
+science_bias = 64
 expansion = 78
-trait_name = "Satrap Treasury"
-trait_desc = "+20% Gold & +10% Combat"
+trait_name = "Achaemenid Legacy"
+trait_desc = "+20% Gold, +12% Combat, +10% Prod"
 gold_pct = 20
-combat_pct = 10
-cities = ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Tarsus", "Gordium", "Bactra", "Sardis", "Ergili", "Dariush"]
-
-[[civs]]
-name = "Yamato"
-color = [235, 235, 240]
-accent = [208, 38, 48]
-aggression = 76
-science_bias = 68
-expansion = 65
-trait_name = "Bushido Discipline"
-trait_desc = "+15% Combat & +10% Prod"
-combat_pct = 15
+combat_pct = 12
 prod_pct = 10
-cities = ["Kyoto", "Osaka", "Tokyo", "Satsuma", "Kagoshima", "Nara", "Nagoya", "Izumo", "Nagasaki", "Sapporo"]
+cities = ["Persepolis", "Pasargadae", "Susa", "Ecbatana", "Tarsus", "Gordium", "Bactra", "Sardis", "Ergili", "Dariush Kabir"]
 
 [[civs]]
-name = "Indra"
+name = "India"
+leader = "Ashoka"
 color = [62, 182, 74]
 accent = [255, 166, 48]
 aggression = 40
 science_bias = 75
 expansion = 60
-trait_name = "River Abundance"
-trait_desc = "+2 Food/City & +2 Cult/City"
-city_food = 2
+trait_name = "Population Growth"
+trait_desc = "+3 Food/City, +2 Culture/City, +10% Science"
+city_food = 3
 city_culture = 2
+sci_pct = 10
 cities = ["Delhi", "Mumbai", "Vijayanagara", "Pataliputra", "Varanasi", "Agra", "Calcutta", "Lahore", "Bangalore", "Jaipur"]
 
 [[civs]]
-name = "Steppe"
+name = "Mongolia"
+leader = "Genghis Khan"
 color = [142, 86, 42]
 accent = [245, 168, 52]
-aggression = 90
+aggression = 92
 science_bias = 42
-expansion = 82
-trait_name = "Thunder Horde"
-trait_desc = "+22% Cavalry & +3 Supply"
-cavalry_pct = 22
+expansion = 84
+trait_name = "Mongol Terror"
+trait_desc = "+25% Cavalry, +3 Supply Cap, +15 Pillage Gold"
+cavalry_pct = 25
 supply_bonus = 3
+pillage_gold_bonus = 15
 cities = ["Karakorum", "Beshbalik", "Turfan", "Hsia", "Old Sarai", "New Sarai", "Tabriz", "Tiflis", "Otrar", "Kazan"]
 
 [[civs]]
-name = "Rus"
+name = "Russia"
+leader = "Catherine"
 color = [212, 164, 48]
 accent = [40, 42, 48]
 aggression = 68
 science_bias = 64
 expansion = 88
-trait_name = "Siberian Vastness"
-trait_desc = "+15% Prod & +4 Supply Cap"
-prod_pct = 15
+trait_name = "Siberian Riches"
+trait_desc = "+18% Prod, +4 Supply Cap, +1 Prod/City"
+prod_pct = 18
 supply_bonus = 4
-cities = ["Novgorod", "Moscow", "Kiev", "Rostov", "Yaroslavl", "Yekaterinburg", "Yakutsk", "Vladivostok", "Smolensk", "Orenburg"]
+city_prod = 1
+cities = ["Moscow", "St. Petersburg", "Novgorod", "Rostov", "Yaroslavl", "Yekaterinburg", "Yakutsk", "Vladivostok", "Smolensk", "Orenburg"]
 
 [[civs]]
-name = "Al-Qasr"
+name = "Arabia"
+leader = "Harun al-Rashid"
 color = [32, 130, 82]
 accent = [248, 224, 128]
 aggression = 58
-science_bias = 76
+science_bias = 78
 expansion = 72
-trait_name = "House of Wisdom"
-trait_desc = "+18% Science & +15% Gold"
+trait_name = "Trade Caravans"
+trait_desc = "+20% Gold, +18% Science, +15 Pillage Gold"
+gold_pct = 20
 sci_pct = 18
-gold_pct = 15
-cities = ["Baghdad", "Damascus", "Medina", "Mecca", "Cairo", "Basra", "Kufah", "Anjar", "Fustat", "Aden"]
+pillage_gold_bonus = 15
+cities = ["Mecca", "Medina", "Damascus", "Baghdad", "Najran", "Kufah", "Basra", "Khurasan", "Anjar", "Fustat"]
 
 [[civs]]
-name = "Solis"
+name = "Inca"
+leader = "Pachacuti"
 color = [232, 118, 38]
 accent = [255, 232, 110]
-aggression = 62
-science_bias = 62
+aggression = 60
+science_bias = 64
 expansion = 72
-trait_name = "Terrace Engineers"
-trait_desc = "+2 Food/City & +15% Prod"
+trait_name = "Great Andean Road"
+trait_desc = "+2 Food/City, +15% Prod, -1t Worker Speed"
 city_food = 2
 prod_pct = 15
+worker_speed_bonus = 1
 cities = ["Cusco", "Tiwanaku", "Machu", "Ollantaytambo", "Corihuayrachina", "Huamanga", "Vilcas", "Vilcabamba", "Vitcos", "Andahuaylas"]
 
 [[civs]]
-name = "Tenoch"
+name = "Aztec"
+leader = "Montezuma"
 color = [178, 52, 46]
 accent = [72, 224, 180]
-aggression = 86
+aggression = 88
 science_bias = 50
 expansion = 70
-trait_name = "Jaguar Fury"
-trait_desc = "+15% Combat & +2 Cult/City"
+trait_name = "Sacrificial Captives"
+trait_desc = "+15% Combat, +2 Culture/City, +15 Pillage Gold"
 combat_pct = 15
 city_culture = 2
+pillage_gold_bonus = 15
 cities = ["Tenochtitlan", "Teotihuacan", "Tlatelolco", "Texcoco", "Tlaxcala", "Calixtlahuaca", "Xochicalco", "Tlacopan", "Atzcapotzalco", "Tzintzuntzan"]
 
 [[civs]]
-name = "Carthago"
+name = "Carthage"
+leader = "Hannibal"
 color = [124, 70, 178]
 accent = [244, 240, 248]
 aggression = 64
 science_bias = 65
 expansion = 78
-trait_name = "Punic Trade League"
-trait_desc = "+28% Gold & +2 Supply Cap"
-gold_pct = 28
+trait_name = "Phoenician Heritage"
+trait_desc = "+25% Gold, +15% Naval, +2 Supply Cap"
+gold_pct = 25
+naval_pct = 15
 supply_bonus = 2
 cities = ["Carthage", "Utica", "Hippo Regius", "Gades", "Saguntum", "Carthago Nova", "Panormus", "Lilybaeum", "Hadrumetum", "Zama"]
 
 [[civs]]
-name = "Byzantia"
+name = "Byzantium"
+leader = "Justinian I"
 color = [146, 56, 152]
 accent = [110, 212, 238]
 aggression = 56
 science_bias = 70
 expansion = 68
-trait_name = "Imperial Bastion"
-trait_desc = "+2 Cult/City & +10% Gold/Sci"
-city_culture = 2
+trait_name = "Patriarchate of Constantinople"
+trait_desc = "+3 Culture/City, +5 City Def, +10% Gold"
+city_culture = 3
+city_defense = 5
 gold_pct = 10
-sci_pct = 10
 cities = ["Constantinople", "Adrianople", "Nicaea", "Antioch", "Nicomedia", "Ohrid", "Trebizond", "Thessalonica", "Varna", "Cherson"]
 
 [[civs]]
-name = "Iberia"
+name = "Spain"
+leader = "Isabella"
 color = [222, 152, 44]
 accent = [196, 36, 44]
 aggression = 66
 science_bias = 62
-expansion = 76
-trait_name = "Treasure Fleets"
-trait_desc = "+22% Gold & +10% Combat"
+expansion = 78
+trait_name = "Seven Cities of Gold"
+trait_desc = "+22% Gold, +12% Naval, +10% Combat"
 gold_pct = 22
+naval_pct = 12
 combat_pct = 10
 cities = ["Madrid", "Barcelona", "Seville", "Cordoba", "Toledo", "Santiago", "Salamanca", "Murcia", "Valencia", "Zaragoza"]
 
 [[civs]]
-name = "Siam"
-color = [224, 186, 108]
-accent = [156, 32, 32]
-aggression = 48
-science_bias = 72
+name = "Ottomans"
+leader = "Suleiman"
+color = [224, 212, 154]
+accent = [22, 118, 62]
+aggression = 74
+science_bias = 64
+expansion = 74
+trait_name = "Barbary Corsairs"
+trait_desc = "+20% Naval, +12% Combat, +2 Supply Cap"
+naval_pct = 20
+combat_pct = 12
+supply_bonus = 2
+cities = ["Istanbul", "Edirne", "Ankara", "Bursa", "Konya", "Samsun", "Gaziantep", "Diyarbakir", "Izmir", "Kayseri"]
+
+[[civs]]
+name = "Babylon"
+leader = "Nebuchadnezzar II"
+color = [44, 154, 186]
+accent = [235, 224, 160]
+aggression = 52
+science_bias = 90
 expansion = 66
-trait_name = "Golden Lotus"
-trait_desc = "+2 Food & +2 Culture/City"
+trait_name = "Ingenuity"
+trait_desc = "Starts with Writing! +22% Empire Science"
+sci_pct = 22
+starts_with_tech = "writing"
+cities = ["Babylon", "Akkad", "Dur-Kurigalzu", "Nippur", "Borsippa", "Sippar", "Opis", "Mari", "Shushan", "Eshnunna"]
+
+[[civs]]
+name = "Korea"
+leader = "Sejong"
+color = [58, 92, 178]
+accent = [238, 72, 72]
+aggression = 48
+science_bias = 92
+expansion = 64
+trait_name = "Scholars of the Jade Hall"
+trait_desc = "+22% Empire Science, +2 Science/City"
+sci_pct = 22
+city_science = 2
+cities = ["Seoul", "Busan", "Jeonju", "Daegu", "Pyongyang", "Kaesong", "Suwon", "Gwangju", "Gangneung", "Andong"]
+
+[[civs]]
+name = "America"
+leader = "Abraham Lincoln"
+color = [38, 74, 168]
+accent = [242, 245, 250]
+aggression = 64
+science_bias = 74
+expansion = 84
+trait_name = "Manifest Destiny"
+trait_desc = "+15% Prod, +15% Gold, +12% Ranged/Air, +2 Sup"
+prod_pct = 15
+gold_pct = 15
+ranged_pct = 12
+supply_bonus = 2
+cities = ["Washington", "New York", "Boston", "Philadelphia", "Atlanta", "Chicago", "Seattle", "San Francisco", "Los Angeles", "Houston"]
+
+[[civs]]
+name = "Norway"
+leader = "Harald Hardrada"
+color = [45, 138, 224]
+accent = [225, 240, 255]
+aggression = 82
+science_bias = 48
+expansion = 72
+trait_name = "Viking Fury"
+trait_desc = "Starts w/ Sailing! +15% Combat, +20% Naval, +20 Pillage"
+combat_pct = 15
+naval_pct = 20
+pillage_gold_bonus = 20
+starts_with_tech = "sailing"
+cities = ["Nidaros", "Oslo", "Bergen", "Stavanger", "Tromso", "Trondheim", "Alesund", "Sarpsborg", "Hamar", "Tunsberg"]
+
+[[civs]]
+name = "Indonesia"
+leader = "Gajah Mada"
+color = [196, 48, 56]
+accent = [110, 232, 212]
+aggression = 58
+science_bias = 70
+expansion = 76
+trait_name = "Spice Islanders"
+trait_desc = "+20% Gold, +2 Food/City, +2 Culture/City, +15% Naval"
+gold_pct = 20
 city_food = 2
 city_culture = 2
-cities = ["Sukhothai", "Si Satchanalai", "Muang Saluang", "Lampang", "Phitsanulok", "Kamphaeng Phet", "Ayutthaya", "Thonburi", "Chiang Mai", "Nakhon"]
-
-[[civs]]
-name = "Kush"
-color = [198, 112, 62]
-accent = [242, 218, 148]
-aggression = 62
-science_bias = 66
-expansion = 70
-trait_name = "Nubian Archers"
-trait_desc = "+12% Combat & +18% Gold"
-combat_pct = 12
-gold_pct = 18
-cities = ["Meroe", "Napata", "Kerma", "El-Kurru", "Nuri", "Qasr Ibrim", "Faras", "Sedeinga", "Kawa", "Dongola"]
-
-[[civs]]
-name = "Atlantis"
-color = [44, 184, 188]
-accent = [230, 250, 252]
-aggression = 52
-science_bias = 85
-expansion = 72
-trait_name = "Sunken Archive"
-trait_desc = "+22% Science & +10% Prod"
-sci_pct = 22
-prod_pct = 10
-cities = ["Poseidonis", "Thera", "Nereus", "Triton", "Calypso", "Aegea", "Pelagia", "Okeanos", "Thalassa", "Corallia"]
+naval_pct = 15
+cities = ["Jakarta", "Surabaya", "Medan", "Makassar", "Trowulan", "Palembang", "Semarang", "Yogyakarta", "Banjarmasin", "Denpasar"]

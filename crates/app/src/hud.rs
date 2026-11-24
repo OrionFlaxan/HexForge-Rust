@@ -1,19 +1,24 @@
 use crate::codex::{draw_codex_modal, CodexState};
 use crate::settings::{
-    draw_modal_frame, ui_button, AppOptions, TouchScroll, UiMetrics, ACCENT_CYAN, ACCENT_GOLD,
-    ACCENT_GREEN, ACCENT_PURPLE, ACCENT_RED, BG_CARD, BG_PANEL, BORDER_DIM, BORDER_GOLD,
+    draw_modal_frame, draw_panel, ui_button, AppOptions, TouchScroll, UiMetrics, UiTheme,
+    ACCENT_CYAN, ACCENT_GOLD, ACCENT_GREEN, ACCENT_PURPLE, ACCENT_RED, BG_CARD, BG_PANEL,
+    BORDER_DIM, BORDER_GOLD,
 };
+use crate::sprites::{draw_building_icon, draw_unit_sprite, draw_worker_order_icon};
 use hexforge_sim::combat::{can_merge_units, city_defense_strength, find_merge_partner};
-use hexforge_sim::economy::{compute_city_yields, rush_buy_cost, tile_yields};
+use hexforge_sim::economy::{
+    compute_city_yields, next_mandatory_choice, pick_next_available_tech, rush_buy_cost,
+    tile_yields,
+};
 use hexforge_sim::improvements::{available_worker_orders, can_pillage_tile};
 use hexforge_sim::policies::{
     can_adopt_policy, can_afford_any_policy, has_policy, policy_cost, CULTURE_VICTORY_POLICIES,
 };
 use hexforge_sim::ruleset::{BuildingDef, Ruleset, NUM_ERAS};
 use hexforge_sim::types::{
-    CityId, CivId, DiploStatus, GameConfig, MapSize, PolicyId, ProductionItem, Road, TechId,
-    TileId, UnitId, UnitRole, VictoryKind, WorkerOrder, Yields, INVALID_CITY, NO_CIV,
-    VICTORY_CULTURE, VICTORY_DOMINATION, VICTORY_SCIENCE, VICTORY_SCORE,
+    CityId, CivId, DiploStatus, GameConfig, MapSize, PendingChoice, PolicyId, ProductionItem,
+    Road, TechId, TileId, UnitId, UnitRole, VictoryKind, WorkerOrder, Yields, INVALID_CITY,
+    NO_CIV, VICTORY_CULTURE, VICTORY_DOMINATION, VICTORY_SCIENCE, VICTORY_SCORE,
 };
 use hexforge_sim::world::World;
 use hexforge_sim::TurnMetrics;
@@ -81,6 +86,7 @@ impl Default for ActiveModalDefault {
 pub enum HudAction {
     None,
     EndTurn,
+    ResolveChoice(PendingChoice),
     NextUnit,
     MergeUnit(UnitId, UnitId),
     FoundCity(UnitId),
@@ -123,17 +129,26 @@ pub fn draw_title_screen(
     has_autosave: bool,
     status_msg: &str,
 ) -> TitleAction {
-    clear_background(Color::from_rgba(11, 15, 23, 255));
+    clear_background(if ui.theme == UiTheme::PixelArt {
+        Color::from_rgba(12, 14, 26, 255)
+    } else {
+        Color::from_rgba(10, 14, 20, 255)
+    });
 
     // Full-screen tiled decorative hex backdrop covering 100% of any aspect ratio
     let hex_r = ui.dp(34.0);
     let cols = (ui.sw / (hex_r * 1.732)).ceil() as i32 + 2;
     let rows = (ui.sh / (hex_r * 1.5)).ceil() as i32 + 2;
+    let hex_col = if ui.theme == UiTheme::PixelArt {
+        Color::new(0.32, 0.36, 0.56, 0.24)
+    } else {
+        Color::new(0.24, 0.34, 0.48, 0.18)
+    };
     for row in 0..rows {
         for col in 0..cols {
             let cx = col as f32 * hex_r * 1.732 + if row % 2 == 1 { hex_r * 0.866 } else { 0.0 };
             let cy = row as f32 * hex_r * 1.5;
-            draw_poly_lines(cx, cy, 6, hex_r, 30.0, ui.dp(1.0), Color::new(0.24, 0.34, 0.48, 0.22));
+            draw_poly_lines(cx, cy, 6, hex_r, 30.0, ui.dp(1.0), hex_col);
         }
     }
 
@@ -145,28 +160,34 @@ pub fn draw_title_screen(
         return TitleAction::None;
     }
 
-    let card_w = (ui.sw * 0.94).min(ui.dp(700.0));
-    let card_h = (ui.sh * 0.92).min(ui.dp(560.0));
+    let card_w = (ui.sw * 0.94).min(ui.dp(720.0));
+    let card_h = (ui.sh * 0.93).min(ui.dp(580.0));
     let cx = (ui.sw - card_w) * 0.5;
     let cy = (ui.sh - card_h) * 0.5;
     let pad = ui.dp(14.0);
     let inner_w = card_w - pad * 2.0;
 
-    draw_rectangle(cx, cy, card_w, card_h, BG_PANEL);
-    draw_rectangle_lines(cx, cy, card_w, card_h, ui.dp(2.4), BORDER_GOLD);
+    draw_panel(ui, Rect::new(cx, cy, card_w, card_h), ui.panel_bg(), BORDER_GOLD);
 
     // Header banner
-    let title = "HEXFORGE-RUST  v0.4";
+    let title = "HEXFORGE-RUST  v0.5";
     let title_fs = ui.fs(24.0);
     let td = measure_text(title, None, title_fs as u16, 1.0);
-    draw_text(title, cx + (card_w - td.width) * 0.5, cy + ui.dp(30.0), title_fs, ACCENT_GOLD);
+    let tx = cx + (card_w - td.width) * 0.5;
+    if ui.theme == UiTheme::PixelArt {
+        draw_text(title, tx + 1.5, cy + ui.dp(31.5), title_fs, Color::new(0.0, 0.0, 0.0, 0.72));
+    }
+    draw_text(title, tx, cy + ui.dp(30.0), title_fs, ACCENT_GOLD);
 
-    let sub = "9 Eras  |  76 Techs  |  58 Units  |  16 Tile Improvements";
+    let sub = format!(
+        "24 Historical Empires  |  {} UI  |  9 Eras / 76 Techs",
+        ui.theme.name()
+    );
     let sub_fs = ui.fs(12.5);
-    let sd = measure_text(sub, None, sub_fs as u16, 1.0);
-    draw_text(sub, cx + (card_w - sd.width) * 0.5, cy + ui.dp(48.0), sub_fs, ACCENT_CYAN);
+    let sd = measure_text(&sub, None, sub_fs as u16, 1.0);
+    draw_text(&sub, cx + (card_w - sd.width) * 0.5, cy + ui.dp(48.0), sub_fs, ACCENT_CYAN);
 
-    // 4 Big Navigation Tabs: PLAY | RULES & CIV | OPTIONS | CODEX
+    // 4 Big Navigation Tabs: NEW GAME | RULES & CIV | OPTIONS | CODEX / ?
     let tab_y = cy + ui.dp(56.0);
     let tab_h = ui.dp(38.0);
     let tab_w = (inner_w - ui.dp(18.0)) / 4.0;
@@ -184,7 +205,7 @@ pub fn draw_title_screen(
         } else if t_opt.is_none() {
             Color::new(0.24, 0.18, 0.38, 1.0)
         } else {
-            BG_CARD
+            ui.card_bg()
         };
         let border = if active {
             ACCENT_GOLD
@@ -232,7 +253,7 @@ pub fn draw_title_screen(
                 if ui_button(
                     r,
                     lbl,
-                    if active { Color::new(0.18, 0.36, 0.50, 1.0) } else { BG_CARD },
+                    if active { Color::new(0.18, 0.36, 0.50, 1.0) } else { ui.card_bg() },
                     if active { ACCENT_GOLD } else { BORDER_DIM },
                     ui.fs(13.5),
                 ) {
@@ -242,10 +263,11 @@ pub fn draw_title_screen(
             }
             y += btn_h + gap;
 
-            // Civilizations + Seed side-by-side in Landscape or stacked in Portrait
+            // Civilizations (up to all 24 Historical Empires!)
+            let max_civs = rules.civs.len() as u16;
             let step_w = ui.dp(48.0);
             draw_text(
-                &format!("Empires: {} (Max 22)", setup.num_civs),
+                &format!("Empires: {} (Max {max_civs})", setup.num_civs),
                 cx + pad,
                 y + btn_h * 0.64,
                 lbl_fs,
@@ -254,7 +276,7 @@ pub fn draw_title_screen(
             if ui_button(
                 Rect::new(cx + card_w - pad - step_w * 2.0 - ui.dp(6.0), y, step_w, btn_h),
                 "-",
-                BG_CARD,
+                ui.card_bg(),
                 BORDER_DIM,
                 ui.fs(20.0),
             ) && setup.num_civs > 2
@@ -264,34 +286,34 @@ pub fn draw_title_screen(
             if ui_button(
                 Rect::new(cx + card_w - pad - step_w, y, step_w, btn_h),
                 "+",
-                BG_CARD,
+                ui.card_bg(),
                 BORDER_DIM,
                 ui.fs(20.0),
-            ) && setup.num_civs < 22
+            ) && setup.num_civs < max_civs
             {
-                setup.num_civs = (setup.num_civs + 2).min(22);
+                setup.num_civs = (setup.num_civs + 2).min(max_civs);
             }
             y += btn_h + gap;
 
-            // Game Mode (Play Chosen Civ vs AI Spectator)
+            // Game Mode (Play Chosen Historical Civ vs AI Spectator)
             let half_w = (inner_w - ui.dp(8.0)) * 0.5;
             let is_human = setup.human_civ.is_some();
-            let chosen_name = &rules.civs[(setup.rules.human_civ_template as usize).min(rules.civs.len() - 1)].name;
+            let chosen_civ = &rules.civs[(setup.rules.human_civ_template as usize).min(rules.civs.len() - 1)];
             if ui_button(
                 Rect::new(cx + pad, y, half_w, btn_h),
-                &format!("Play as {chosen_name}"),
-                if is_human { Color::new(0.16, 0.38, 0.24, 1.0) } else { BG_CARD },
+                &format!("Play: {} ({})", chosen_civ.name, chosen_civ.leader),
+                if is_human { Color::new(0.16, 0.38, 0.24, 1.0) } else { ui.card_bg() },
                 if is_human { ACCENT_GREEN } else { BORDER_DIM },
-                ui.fs(14.5),
+                ui.fs(13.5),
             ) {
                 setup.human_civ = Some(0);
             }
             if ui_button(
                 Rect::new(cx + pad + half_w + ui.dp(8.0), y, half_w, btn_h),
                 "AI Spectator Mode",
-                if !is_human { Color::new(0.32, 0.20, 0.44, 1.0) } else { BG_CARD },
+                if !is_human { Color::new(0.32, 0.20, 0.44, 1.0) } else { ui.card_bg() },
                 if !is_human { ACCENT_CYAN } else { BORDER_DIM },
-                ui.fs(14.5),
+                ui.fs(14.0),
             ) {
                 setup.human_civ = None;
             }
@@ -311,7 +333,7 @@ pub fn draw_title_screen(
             if ui_button(
                 Rect::new(cx + card_w - pad - rnd_w, y, rnd_w, btn_h * 0.9),
                 "NEW SEED",
-                BG_CARD,
+                ui.card_bg(),
                 BORDER_DIM,
                 ui.fs(12.5),
             ) {
@@ -320,32 +342,51 @@ pub fn draw_title_screen(
         }
         TitleTab::RulesAndCiv => {
             let mut y = body_top + ui.dp(2.0);
-            let row_h = ui.dp(38.0).min(body_h * 0.19);
-            let gap = ui.dp(7.0);
+            let civ_h = ui.dp(62.0).min(body_h * 0.30);
+            let row_h = ((body_h - civ_h - ui.dp(32.0)) / 4.0).clamp(ui.dp(30.0), ui.dp(38.0));
+            let gap = ui.dp(6.0);
 
-            // 1. Civilization Picker (all 22 Civs with Unique Traits!)
+            // 1. Historical Civilization Showcase Card (Leader, Ability, Unique Unit & Unique Building!)
             let tpl_idx = (setup.rules.human_civ_template as usize).min(rules.civs.len() - 1);
             let cdef = &rules.civs[tpl_idx];
             let sw_col = Color::from_rgba(cdef.color[0], cdef.color[1], cdef.color[2], 255);
-            draw_rectangle(cx + pad, y, inner_w, row_h + ui.dp(6.0), BG_CARD);
-            draw_rectangle(cx + pad, y, ui.dp(8.0), row_h + ui.dp(6.0), sw_col);
+            draw_panel(ui, Rect::new(cx + pad, y, inner_w, civ_h), ui.card_bg(), sw_col);
+            draw_rectangle(cx + pad + ui.dp(2.0), y + ui.dp(2.0), ui.dp(8.0), civ_h - ui.dp(4.0), sw_col);
+
+            let uu_lbl = cdef
+                .unique_unit
+                .map(|id| rules.units[id as usize].name.as_str())
+                .unwrap_or("-");
+            let ub_lbl = cdef
+                .unique_building
+                .map(|id| rules.buildings[id as usize].name.as_str())
+                .unwrap_or("-");
             draw_text(
-                &format!("Civ: {} — {}", cdef.name, cdef.trait_name),
-                cx + pad + ui.dp(14.0),
-                y + ui.dp(18.0),
-                ui.fs(14.5),
+                &format!("{} — {}  ({}/{})", cdef.name, cdef.leader, tpl_idx + 1, rules.civs.len()),
+                cx + pad + ui.dp(15.0),
+                y + civ_h * 0.29,
+                ui.fs(14.0),
                 ACCENT_GOLD,
             );
             draw_text(
-                &cdef.trait_desc,
-                cx + pad + ui.dp(14.0),
-                y + ui.dp(35.0),
-                ui.fs(12.5),
+                &format!("{}: {}", cdef.trait_name, cdef.trait_desc),
+                cx + pad + ui.dp(15.0),
+                y + civ_h * 0.59,
+                ui.fs(11.8),
                 WHITE,
             );
-            let nav_w = ui.dp(46.0);
+            draw_text(
+                &format!("UU: {}   |   UB: {}", uu_lbl, ub_lbl),
+                cx + pad + ui.dp(15.0),
+                y + civ_h * 0.87,
+                ui.fs(11.5),
+                ACCENT_CYAN,
+            );
+
+            let nav_w = ui.dp(42.0);
+            let nav_h = (civ_h - ui.dp(14.0)).min(ui.dp(40.0));
             if ui_button(
-                Rect::new(cx + card_w - pad - nav_w * 2.0 - ui.dp(10.0), y + ui.dp(4.0), nav_w, row_h - ui.dp(2.0)),
+                Rect::new(cx + card_w - pad - nav_w * 2.0 - ui.dp(10.0), y + ui.dp(6.0), nav_w, nav_h),
                 "<",
                 BG_PANEL,
                 BORDER_GOLD,
@@ -358,7 +399,7 @@ pub fn draw_title_screen(
                 };
             }
             if ui_button(
-                Rect::new(cx + card_w - pad - nav_w - ui.dp(4.0), y + ui.dp(4.0), nav_w, row_h - ui.dp(2.0)),
+                Rect::new(cx + card_w - pad - nav_w - ui.dp(5.0), y + ui.dp(6.0), nav_w, nav_h),
                 ">",
                 BG_PANEL,
                 BORDER_GOLD,
@@ -366,25 +407,25 @@ pub fn draw_title_screen(
             ) {
                 setup.rules.human_civ_template = ((tpl_idx + 1) % rules.civs.len()) as u8;
             }
-            y += row_h + ui.dp(12.0);
+            y += civ_h + ui.dp(8.0);
 
             // 2. Difficulty + Game Speed
             let half = (inner_w - ui.dp(8.0)) * 0.5;
             if ui_button(
                 Rect::new(cx + pad, y, half, row_h),
                 &format!("Difficulty: {}", setup.rules.difficulty.name()),
-                BG_CARD,
+                ui.card_bg(),
                 ACCENT_GOLD,
-                ui.fs(13.5),
+                ui.fs(13.0),
             ) {
                 setup.rules.difficulty = setup.rules.difficulty.next();
             }
             if ui_button(
                 Rect::new(cx + pad + half + ui.dp(8.0), y, half, row_h),
                 &format!("Speed: {} ({}t)", setup.rules.speed.name(), setup.rules.speed.default_turn_limit()),
-                BG_CARD,
+                ui.card_bg(),
                 ACCENT_CYAN,
-                ui.fs(13.5),
+                ui.fs(13.0),
             ) {
                 setup.rules.speed = setup.rules.speed.next();
                 setup.turn_limit = setup.rules.speed.default_turn_limit();
@@ -395,18 +436,18 @@ pub fn draw_title_screen(
             if ui_button(
                 Rect::new(cx + pad, y, half, row_h),
                 &format!("Map: {}", setup.rules.map_type.name()),
-                BG_CARD,
+                ui.card_bg(),
                 BORDER_DIM,
-                ui.fs(13.5),
+                ui.fs(13.0),
             ) {
                 setup.rules.map_type = setup.rules.map_type.next();
             }
             if ui_button(
                 Rect::new(cx + pad + half + ui.dp(8.0), y, half, row_h),
                 &format!("Start Era: {}", Ruleset::era_name(setup.rules.start_era)),
-                BG_CARD,
+                ui.card_bg(),
                 BORDER_DIM,
-                ui.fs(13.5),
+                ui.fs(13.0),
             ) {
                 setup.rules.start_era = (setup.rules.start_era + 1) % 8;
             }
@@ -417,27 +458,27 @@ pub fn draw_title_screen(
             if ui_button(
                 Rect::new(cx + pad, y, third, row_h),
                 if setup.rules.allow_corps_armies { "Corps/Armies: ON" } else { "Corps/Armies: OFF" },
-                if setup.rules.allow_corps_armies { Color::new(0.14, 0.34, 0.22, 1.0) } else { BG_CARD },
+                if setup.rules.allow_corps_armies { Color::new(0.14, 0.34, 0.22, 1.0) } else { ui.card_bg() },
                 if setup.rules.allow_corps_armies { ACCENT_GREEN } else { BORDER_DIM },
-                ui.fs(12.5),
+                ui.fs(12.0),
             ) {
                 setup.rules.allow_corps_armies = !setup.rules.allow_corps_armies;
             }
             if ui_button(
                 Rect::new(cx + pad + third + ui.dp(6.0), y, third, row_h),
                 if setup.rules.fog_of_war { "Fog of War: ON" } else { "Fog of War: OFF" },
-                if setup.rules.fog_of_war { Color::new(0.14, 0.34, 0.22, 1.0) } else { BG_CARD },
+                if setup.rules.fog_of_war { Color::new(0.14, 0.34, 0.22, 1.0) } else { ui.card_bg() },
                 if setup.rules.fog_of_war { ACCENT_GREEN } else { BORDER_DIM },
-                ui.fs(12.5),
+                ui.fs(12.0),
             ) {
                 setup.rules.fog_of_war = !setup.rules.fog_of_war;
             }
             if ui_button(
                 Rect::new(cx + pad + (third + ui.dp(6.0)) * 2.0, y, third, row_h),
                 if setup.rules.no_turn_limit { "Turn Limit: OFF" } else { "Turn Limit: ON" },
-                if !setup.rules.no_turn_limit { Color::new(0.14, 0.34, 0.22, 1.0) } else { BG_CARD },
+                if !setup.rules.no_turn_limit { Color::new(0.14, 0.34, 0.22, 1.0) } else { ui.card_bg() },
                 if !setup.rules.no_turn_limit { ACCENT_GREEN } else { BORDER_DIM },
-                ui.fs(12.5),
+                ui.fs(12.0),
             ) {
                 setup.rules.no_turn_limit = !setup.rules.no_turn_limit;
             }
@@ -453,13 +494,13 @@ pub fn draw_title_screen(
             ];
             for (idx, &(bit, name)) in v_items.iter().enumerate() {
                 let on = (setup.rules.victory_mask & bit) != 0;
-                let r = Rect::new(cx + pad + (idx as f32) * (qtr + ui.dp(6.0)), y, qtr, row_h * 0.9);
+                let r = Rect::new(cx + pad + (idx as f32) * (qtr + ui.dp(6.0)), y, qtr, row_h * 0.92);
                 if ui_button(
                     r,
                     &format!("{}: {}", name, if on { "ON" } else { "OFF" }),
-                    if on { Color::new(0.18, 0.30, 0.44, 1.0) } else { BG_CARD },
+                    if on { Color::new(0.18, 0.30, 0.44, 1.0) } else { ui.card_bg() },
                     if on { ACCENT_CYAN } else { BORDER_DIM },
-                    ui.fs(12.0),
+                    ui.fs(11.8),
                 ) {
                     setup.rules.victory_mask ^= bit;
                     if setup.rules.victory_mask == 0 {
@@ -525,18 +566,46 @@ pub fn draw_title_screen(
 pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -> bool {
     let mut changed = false;
     let mut y = area.y + ui.dp(2.0);
-    let row_h = ui.dp(38.0).min(area.h * 0.21);
-    let gap = ui.dp(8.0);
+    let gap = ui.dp(6.0);
+    // Fit 6 clean rows comfortably on both phone & desktop screens
+    let row_h = ((area.h - ui.dp(54.0)) / 6.0).clamp(ui.dp(28.0), ui.dp(38.0));
+    let half = (area.w - ui.dp(8.0)) * 0.5;
 
-    // 1. Live UI Scale selector (fixes small buttons on ANY phone/tablet!)
+    // 1. Live Dual UI Theme Switcher: PIXEL ART vs MODERN SIMPLE!
+    draw_text("UI Visual Theme (Instant Live Switch):", area.x, y + ui.dp(13.0), ui.fs(13.5), ACCENT_GOLD);
+    y += ui.dp(17.0);
+    let is_px = options.ui_theme == UiTheme::PixelArt;
+    if ui_button(
+        Rect::new(area.x, y, half, row_h),
+        "PIXEL ART (Retro 4X)",
+        if is_px { Color::new(0.24, 0.22, 0.46, 1.0) } else { ui.card_bg() },
+        if is_px { ACCENT_GOLD } else { BORDER_DIM },
+        ui.fs(13.0),
+    ) {
+        options.ui_theme = UiTheme::PixelArt;
+        changed = true;
+    }
+    if ui_button(
+        Rect::new(area.x + half + ui.dp(8.0), y, half, row_h),
+        "MODERN SIMPLE (Clean)",
+        if !is_px { Color::new(0.14, 0.34, 0.46, 1.0) } else { ui.card_bg() },
+        if !is_px { ACCENT_CYAN } else { BORDER_DIM },
+        ui.fs(13.0),
+    ) {
+        options.ui_theme = UiTheme::ModernSimple;
+        changed = true;
+    }
+    y += row_h + gap;
+
+    // 2. Live UI Scale selector
     draw_text(
-        &format!("UI Button Scale: {:.0}%  (Live Preview)", options.ui_scale_mult * 100.0),
+        &format!("UI Button Scale: {:.0}%", options.ui_scale_mult * 100.0),
         area.x,
-        y + ui.dp(15.0),
-        ui.fs(14.5),
-        ACCENT_GOLD,
+        y + ui.dp(13.0),
+        ui.fs(13.0),
+        ACCENT_CYAN,
     );
-    y += ui.dp(20.0);
+    y += ui.dp(16.0);
     let scales = [0.75f32, 0.90, 1.00, 1.15, 1.30, 1.50];
     let sbw = (area.w - ui.dp(25.0)) / 6.0;
     for (idx, &sc) in scales.iter().enumerate() {
@@ -545,9 +614,9 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
         if ui_button(
             r,
             &format!("{:.0}%", sc * 100.0),
-            if active { Color::new(0.18, 0.38, 0.54, 1.0) } else { BG_CARD },
+            if active { Color::new(0.18, 0.38, 0.54, 1.0) } else { ui.card_bg() },
             if active { ACCENT_GOLD } else { BORDER_DIM },
-            ui.fs(13.0),
+            ui.fs(12.5),
         ) {
             options.ui_scale_mult = sc;
             changed = true;
@@ -555,27 +624,25 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
     }
     y += row_h + gap;
 
-    // 2. Map & HUD Toggle Grid (2 columns x 3 rows)
-    let half = (area.w - ui.dp(8.0)) * 0.5;
-    let toggles: [(&str, bool, usize); 6] = [
+    // 3. Gameplay Turn Guard & Map Toggles (2 columns x 4 rows)
+    let autosave_lbl = if options.autosave_interval == 0 {
+        "Autosave: OFF"
+    } else if options.autosave_interval == 5 {
+        "Autosave: 5 Turns"
+    } else if options.autosave_interval == 10 {
+        "Autosave: 10 Turns"
+    } else {
+        "Autosave: 25 Turns"
+    };
+    let toggles: [(&str, bool, usize); 8] = [
+        ("Force Tech/Build", options.require_turn_choices, 6),
+        ("Force Policy Pick", options.require_policy_choice, 7),
         ("Tile Yields", options.show_tile_yields, 0),
         ("Hex Grid Lines", options.show_hex_grid, 1),
         ("Resource Badges", options.show_resources, 2),
         ("Rust Perf / FPS", options.show_perf_hud, 3),
         ("Auto Next Unit", options.auto_next_unit, 4),
-        (
-            if options.autosave_interval == 0 {
-                "Autosave: OFF"
-            } else if options.autosave_interval == 5 {
-                "Autosave: 5 Turns"
-            } else if options.autosave_interval == 10 {
-                "Autosave: 10 Turns"
-            } else {
-                "Autosave: 25 Turns"
-            },
-            options.autosave_interval > 0,
-            5,
-        ),
+        (autosave_lbl, options.autosave_interval > 0, 5),
     ];
 
     for (i, &(lbl, on, id)) in toggles.iter().enumerate() {
@@ -588,12 +655,17 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
         } else {
             format!("{}: {}", lbl, if on { "ON" } else { "OFF" })
         };
+        let bdr = if on {
+            if id == 6 { ACCENT_GOLD } else { ACCENT_GREEN }
+        } else {
+            BORDER_DIM
+        };
         if ui_button(
             Rect::new(rx, ry, half, row_h),
             &text,
-            if on { Color::new(0.14, 0.34, 0.24, 1.0) } else { BG_CARD },
-            if on { ACCENT_GREEN } else { BORDER_DIM },
-            ui.fs(13.5),
+            if on { Color::new(0.14, 0.34, 0.24, 1.0) } else { ui.card_bg() },
+            bdr,
+            ui.fs(12.5),
         ) {
             match id {
                 0 => options.show_tile_yields = !options.show_tile_yields,
@@ -601,7 +673,9 @@ pub fn draw_options_body(ui: &UiMetrics, area: Rect, options: &mut AppOptions) -
                 2 => options.show_resources = !options.show_resources,
                 3 => options.show_perf_hud = !options.show_perf_hud,
                 4 => options.auto_next_unit = !options.auto_next_unit,
-                _ => options.cycle_autosave(),
+                5 => options.cycle_autosave(),
+                6 => options.require_turn_choices = !options.require_turn_choices,
+                _ => options.require_policy_choice = !options.require_policy_choice,
             }
             changed = true;
         }
@@ -634,8 +708,15 @@ pub fn draw_game_hud(
     let modal_open = modal != ActiveModal::None || world.victory.is_some();
 
     // ==================== TOP BAR ====================
-    draw_rectangle(0.0, 0.0, ui.sw, ui.top_bar_h, BG_PANEL);
-    draw_line(0.0, ui.top_bar_h, ui.sw, ui.top_bar_h, ui.dp(1.8), BORDER_GOLD);
+    draw_rectangle(0.0, 0.0, ui.sw, ui.top_bar_h, ui.panel_bg());
+    draw_line(
+        0.0,
+        ui.top_bar_h,
+        ui.sw,
+        ui.top_bar_h,
+        ui.dp(if ui.theme == UiTheme::PixelArt { 2.2 } else { 1.4 }),
+        BORDER_GOLD,
+    );
 
     let active_civ_id = viewer_civ.unwrap_or(0);
     let cs = &world.civs[active_civ_id as usize];
@@ -650,17 +731,24 @@ pub fn draw_game_hud(
     let btn_y = if ui.is_portrait { ui.top_bar_h - btn_h - ui.dp(4.0) } else { ui.dp(7.0) };
 
     if viewer_civ.is_some() {
+        let needs_tech =
+            cs.current_tech.is_none() && pick_next_available_tech(cs.tech_bits, rules).is_some();
         let btns: [(&str, ActiveModal, Color, Color); 5] = [
-            ("TECH", ActiveModal::Tech, BG_CARD, ACCENT_CYAN),
+            (
+                if needs_tech { "TECH !" } else { "TECH" },
+                ActiveModal::Tech,
+                if needs_tech { Color::new(0.14, 0.36, 0.54, 1.0) } else { ui.card_bg() },
+                if needs_tech { ACCENT_GOLD } else { ACCENT_CYAN },
+            ),
             (
                 if pol_ready { "POL !" } else { "POL" },
                 ActiveModal::Policies,
-                if pol_ready { Color::new(0.36, 0.16, 0.48, 1.0) } else { BG_CARD },
+                if pol_ready { Color::new(0.36, 0.16, 0.48, 1.0) } else { ui.card_bg() },
                 if pol_ready { ACCENT_GOLD } else { ACCENT_PURPLE },
             ),
-            ("DIPLO", ActiveModal::Diplo, BG_CARD, BORDER_DIM),
-            ("RULES", ActiveModal::Codex, BG_CARD, BORDER_DIM),
-            ("MENU", ActiveModal::Menu, BG_CARD, BORDER_GOLD),
+            ("DIPLO", ActiveModal::Diplo, ui.card_bg(), BORDER_DIM),
+            ("RULES", ActiveModal::Codex, ui.card_bg(), BORDER_DIM),
+            ("MENU", ActiveModal::Menu, ui.card_bg(), BORDER_GOLD),
         ];
         if ui.is_portrait {
             let bw = (ui.sw - pad * 2.0 - ui.dp(20.0)) / 5.0;
@@ -697,20 +785,21 @@ pub fn draw_game_hud(
         } else {
             ACCENT_GREEN
         };
-        let tech_str = cs
-            .current_tech
-            .map(|tid| {
+        let (tech_str, tech_col) = match cs.current_tech {
+            Some(tid) => {
                 let t = &rules.techs[tid as usize];
                 let cost = Ruleset::scaled_cost(t.cost, world.config.rules.speed);
                 let rem = ((cost - cs.tech_progress).max(1) + cs.science_per_turn.max(1) - 1)
                     / cs.science_per_turn.max(1);
-                format!("{} ({}t)", t.name, rem)
-            })
-            .unwrap_or_else(|| "All Techs".into());
+                (format!("{} ({}t)", t.name, rem), ACCENT_CYAN)
+            }
+            None if needs_tech => ("CHOOSE TECH!".into(), ACCENT_GOLD),
+            None => ("All Techs".into(), ACCENT_GREEN),
+        };
         let line2_y = if ui.is_portrait { ui.dp(34.0) } else { ui.dp(40.0) };
         let sup_txt = format!("Sup {}/{}", cs.supply_used, cs.supply_cap);
         draw_text(&sup_txt, pad, line2_y, top_fs - ui.dp(0.8), supply_col);
-        draw_text(&format!("Tech: {tech_str}"), pad + ui.dp(92.0), line2_y, top_fs - ui.dp(0.8), ACCENT_CYAN);
+        draw_text(&format!("Tech: {tech_str}"), pad + ui.dp(92.0), line2_y, top_fs - ui.dp(0.8), tech_col);
 
         if options.show_perf_hud && !ui.is_portrait {
             let perf = format!("{:.1}ms | {}fps", last_metrics.total_ms, get_fps());
@@ -743,10 +832,10 @@ pub fn draw_game_hud(
         let bw = ui.dp(74.0);
         let menu_r = Rect::new(ui.sw - bw - pad, btn_y, bw, btn_h);
         let codex_r = Rect::new(menu_r.x - bw - ui.dp(6.0), btn_y, bw, btn_h);
-        if ui_button(menu_r, "MENU", BG_CARD, BORDER_GOLD, ui.fs(13.0)) {
+        if ui_button(menu_r, "MENU", ui.card_bg(), BORDER_GOLD, ui.fs(13.0)) {
             action = HudAction::OpenModal(ActiveModal::Menu);
         }
-        if ui_button(codex_r, "RULES", BG_CARD, BORDER_DIM, ui.fs(13.0)) {
+        if ui_button(codex_r, "RULES", ui.card_bg(), BORDER_DIM, ui.fs(13.0)) {
             action = HudAction::OpenModal(ActiveModal::Codex);
         }
     }
@@ -759,30 +848,81 @@ pub fn draw_game_hud(
         let th = ui.dp(30.0);
         let tx = (ui.sw - tw) * 0.5;
         let ty = ui.top_bar_h + ui.dp(6.0);
-        draw_rectangle(tx, ty, tw, th, Color::new(0.08, 0.12, 0.19, 0.94));
-        draw_rectangle_lines(tx, ty, tw, th, ui.dp(1.4), ACCENT_GOLD);
+        draw_panel(ui, Rect::new(tx, ty, tw, th), Color::new(0.08, 0.12, 0.19, 0.95), ACCENT_GOLD);
         draw_text(toast, tx + ui.dp(10.0), ty + th * 0.70, tfs, ACCENT_GOLD);
     }
 
     // ==================== BOTTOM BAR ====================
     let by = ui.sh - ui.bottom_bar_h;
-    draw_rectangle(0.0, by, ui.sw, ui.bottom_bar_h, BG_PANEL);
-    draw_line(0.0, by, ui.sw, by, ui.dp(1.8), BORDER_GOLD);
+    draw_rectangle(0.0, by, ui.sw, ui.bottom_bar_h, ui.panel_bg());
+    draw_line(
+        0.0,
+        by,
+        ui.sw,
+        by,
+        ui.dp(if ui.theme == UiTheme::PixelArt { 2.2 } else { 1.4 }),
+        BORDER_GOLD,
+    );
 
-    let end_w = if ui.is_portrait { ui.dp(116.0) } else { ui.dp(144.0) };
+    let end_w = if ui.is_portrait { ui.dp(124.0) } else { ui.dp(156.0) };
     let end_h = if ui.is_portrait { ui.dp(46.0) } else { ui.bottom_bar_h - ui.dp(20.0) };
     let end_r = Rect::new(ui.sw - end_w - pad, by + ui.dp(10.0), end_w, end_h);
 
-    if viewer_civ.is_some() {
-        let end_lbl = if speculative_ready { "END TURN *" } else { "END TURN" };
-        if ui_button(
-            end_r,
-            end_lbl,
-            Color::new(0.14, 0.48, 0.26, 1.0),
-            if speculative_ready { ACCENT_GOLD } else { ACCENT_GREEN },
-            ui.fs(16.0),
-        ) {
-            action = HudAction::EndTurn;
+    if let Some(hciv) = viewer_civ {
+        // Smart Mandatory Pre-Turn Choice Blocker Button!
+        let pending = if options.require_turn_choices {
+            next_mandatory_choice(world, rules, hciv, options.require_policy_choice)
+        } else {
+            None
+        };
+        match pending {
+            Some(PendingChoice::ChooseTech) => {
+                if ui_button(
+                    end_r,
+                    "CHOOSE TECH",
+                    Color::new(0.12, 0.36, 0.56, 1.0),
+                    ACCENT_GOLD,
+                    ui.fs(14.5),
+                ) {
+                    action = HudAction::ResolveChoice(PendingChoice::ChooseTech);
+                }
+            }
+            Some(PendingChoice::ChooseProduction(cid)) => {
+                let cname = &world.cities.name[cid as usize];
+                let lbl = format!("BUILD: {cname}");
+                if ui_button(
+                    end_r,
+                    &lbl,
+                    Color::new(0.54, 0.34, 0.10, 1.0),
+                    ACCENT_GOLD,
+                    ui.fs(14.0),
+                ) {
+                    action = HudAction::ResolveChoice(PendingChoice::ChooseProduction(cid));
+                }
+            }
+            Some(PendingChoice::AdoptPolicy) => {
+                if ui_button(
+                    end_r,
+                    "ADOPT POLICY",
+                    Color::new(0.36, 0.16, 0.50, 1.0),
+                    ACCENT_GOLD,
+                    ui.fs(14.0),
+                ) {
+                    action = HudAction::ResolveChoice(PendingChoice::AdoptPolicy);
+                }
+            }
+            None => {
+                let end_lbl = if speculative_ready { "END TURN *" } else { "END TURN" };
+                if ui_button(
+                    end_r,
+                    end_lbl,
+                    Color::new(0.14, 0.48, 0.26, 1.0),
+                    if speculative_ready { ACCENT_GOLD } else { ACCENT_GREEN },
+                    ui.fs(16.0),
+                ) {
+                    action = HudAction::EndTurn;
+                }
+            }
         }
     } else {
         let lbl = if auto_spectate { "PAUSE AI" } else { "RUN AI" };
@@ -816,8 +956,9 @@ pub fn draw_game_hud(
             } else {
                 format!(" [{}]", form.label())
             };
+            let uniq_tag = if def.unique_to_civ.is_some() { " *" } else { "" };
             draw_text(
-                &format!("{}{}", def.name, flbl),
+                &format!("{}{}{}", def.name, uniq_tag, flbl),
                 pad,
                 by + ui.dp(19.0),
                 ui.fs(15.5),
@@ -916,7 +1057,7 @@ pub fn draw_game_hud(
                         if ui_button(
                             Rect::new(bx, act_y, iw, act_h),
                             &imp_lbl,
-                            if orders_n > 0 { Color::new(0.16, 0.38, 0.54, 1.0) } else { BG_CARD },
+                            if orders_n > 0 { Color::new(0.16, 0.38, 0.54, 1.0) } else { ui.card_bg() },
                             if orders_n > 0 { ACCENT_GOLD } else { BORDER_DIM },
                             ui.fs(13.0),
                         ) {
@@ -932,7 +1073,7 @@ pub fn draw_game_hud(
                         if ui_button(
                             Rect::new(bx, act_y, aw, act_h),
                             if is_auto { "AUTO: ON" } else { "AUTO WORK" },
-                            if is_auto { Color::new(0.14, 0.42, 0.24, 1.0) } else { BG_CARD },
+                            if is_auto { Color::new(0.14, 0.42, 0.24, 1.0) } else { ui.card_bg() },
                             if is_auto { ACCENT_GREEN } else { BORDER_DIM },
                             ui.fs(12.5),
                         ) {
@@ -943,11 +1084,13 @@ pub fn draw_game_hud(
                 }
 
                 if can_pillage_tile(world, rules, uid) {
-                    let pw = ui.dp(108.0);
+                    let pw = ui.dp(112.0);
+                    let uc = world.units.civ[ui_idx] as usize;
+                    let loot = 20 + rules.civs[world.civs[uc].template_idx as usize].pillage_gold_bonus;
                     if bx + pw <= max_x {
                         if ui_button(
                             Rect::new(bx, act_y, pw, act_h),
-                            "PILLAGE +20g",
+                            &format!("PILLAGE +{loot}g"),
                             Color::new(0.54, 0.22, 0.12, 1.0),
                             ACCENT_GOLD,
                             ui.fs(12.5),
@@ -1340,14 +1483,20 @@ fn draw_worker_actions_modal(
         if ry < list_top - ui.dp(4.0) || ry + row_h > list_top + list_h + ui.dp(4.0) {
             continue;
         }
-        draw_rectangle(
-            list_area.x,
-            ry,
-            list_area.w,
-            row_h - ui.dp(4.0),
-            if info.is_active { Color::new(0.16, 0.30, 0.42, 0.98) } else { BG_CARD },
+        let card_r = Rect::new(list_area.x, ry, list_area.w, row_h - ui.dp(4.0));
+        draw_panel(
+            ui,
+            card_r,
+            if info.is_active { Color::new(0.16, 0.30, 0.42, 0.98) } else { ui.card_bg() },
+            if info.is_active { ACCENT_CYAN } else { BORDER_DIM },
         );
 
+        // Miniature procedural sprite icon for each realistic improvement / terrain engineering order!
+        let icon_cx = list_area.x + ui.dp(22.0);
+        let icon_cy = ry + (row_h - ui.dp(4.0)) * 0.5;
+        draw_worker_order_icon(ui.theme, icon_cx, icon_cy, ui.dp(14.0), info.order);
+
+        let text_x = list_area.x + ui.dp(44.0);
         let y_str = format_yield_delta(info.yield_bonus);
         let title_str = if y_str.is_empty() {
             info.order.name().to_string()
@@ -1360,8 +1509,8 @@ fn draw_worker_actions_modal(
             WorkerOrder::BuildRoad | WorkerOrder::BuildRailroad => ACCENT_CYAN,
             WorkerOrder::BuildImprovement(_) => WHITE,
         };
-        draw_text(&title_str, list_area.x + ui.dp(8.0), ry + ui.dp(20.0), ui.fs(14.0), title_col);
-        draw_text(info.note, list_area.x + ui.dp(8.0), ry + ui.dp(40.0), ui.fs(11.5), LIGHTGRAY);
+        draw_text(&title_str, text_x, ry + ui.dp(20.0), ui.fs(14.0), title_col);
+        draw_text(info.note, text_x, ry + ui.dp(40.0), ui.fs(11.5), LIGHTGRAY);
 
         let bw = ui.dp(98.0);
         let bh = row_h - ui.dp(14.0);
@@ -1397,19 +1546,19 @@ fn draw_worker_actions_modal(
     let fh = footer_h - ui.dp(10.0);
     let sbw = ui.dp(110.0);
     if scroll.offset > 1.0
-        && ui_button(Rect::new(rect.x + pad, fy, sbw, fh), "UP", BG_CARD, BORDER_DIM, ui.fs(13.0))
+        && ui_button(Rect::new(rect.x + pad, fy, sbw, fh), "UP", ui.card_bg(), BORDER_DIM, ui.fs(13.0))
     {
         scroll.offset = (scroll.offset - list_h * 0.65).max(0.0);
     }
     if scroll.offset < max_scroll - 1.0
-        && ui_button(Rect::new(rect.x + pad + sbw + ui.dp(8.0), fy, sbw, fh), "DOWN", BG_CARD, BORDER_DIM, ui.fs(13.0))
+        && ui_button(Rect::new(rect.x + pad + sbw + ui.dp(8.0), fy, sbw, fh), "DOWN", ui.card_bg(), BORDER_DIM, ui.fs(13.0))
     {
         scroll.offset = (scroll.offset + list_h * 0.65).min(max_scroll);
     }
     None
 }
 
-/// City Management Modal with 4 Separated Production Tabs: UNITS | BUILDINGS | WONDERS | BUILT!
+/// City Management Modal with 4 Separated Production Tabs: UNITS | BLDGS | WONDERS | BUILT + Civ Uniques & Miniature Sprites!
 fn draw_city_modal(
     ui: &UiMetrics,
     world: &World,
@@ -1424,6 +1573,9 @@ fn draw_city_modal(
     let ci = cid as usize;
     let civ = world.cities.civ[ci];
     let cs = &world.civs[civ as usize];
+    let tpl_idx = cs.template_idx;
+    let civ_col = Color::from_rgba(cs.color[0], cs.color[1], cs.color[2], 255);
+    let civ_acc = Color::from_rgba(cs.accent[0], cs.accent[1], cs.accent[2], 255);
     let y = compute_city_yields(world, rules, cid);
     let (rect, body_top, closed) =
         draw_modal_frame(ui, &format!("{} (Pop {})", world.cities.name[ci], world.cities.pop[ci]));
@@ -1435,7 +1587,7 @@ fn draw_city_modal(
     let prod_name = match world.cities.producing[ci] {
         Some(ProductionItem::Unit(u)) => rules.units[u as usize].name.as_str(),
         Some(ProductionItem::Building(b)) => rules.buildings[b as usize].name.as_str(),
-        None => "Nothing",
+        None => "Nothing (Choose Production!)",
     };
     draw_text(
         &format!(
@@ -1445,13 +1597,13 @@ fn draw_city_modal(
         rect.x + pad,
         body_top + ui.dp(19.0),
         ui.fs(13.0),
-        ACCENT_CYAN,
+        if world.cities.producing[ci].is_none() { ACCENT_GOLD } else { ACCENT_CYAN },
     );
 
-    // Pre-build the 4 separate category lists cleanly!
-    let mut unit_items: Vec<(ProductionItem, String, i32, String)> = Vec::new();
+    // Pre-build the 4 separate civ-aware category lists cleanly! (item, label, cost, detail, is_unique)
+    let mut unit_items: Vec<(ProductionItem, String, i32, String, bool)> = Vec::new();
     for u in &rules.units {
-        if rules.can_train_unit(cs.tech_bits, u.id) {
+        if rules.can_train_unit_for_civ(cs.tech_bits, tpl_idx, u.id) {
             if u.role.is_naval() && !world.map.is_adjacent_to_water(world.cities.pos[ci]) {
                 continue;
             }
@@ -1461,26 +1613,43 @@ fn draw_city_modal(
             } else {
                 format!("CS {}", u.strength)
             };
-            let detail = format!("{} | {} | Mov {} | Upk {}", u.role.name(), cs_str, u.moves, u.upkeep);
-            unit_items.push((ProductionItem::Unit(u.id), u.name.clone(), cost, detail));
+            let is_uniq = u.unique_to_civ == Some(tpl_idx);
+            let name = if is_uniq {
+                format!("[UNIQUE] {}", u.name)
+            } else {
+                u.name.clone()
+            };
+            let xp_str = if u.starting_xp > 0 {
+                format!(" | +{}XP", u.starting_xp)
+            } else {
+                String::new()
+            };
+            let detail = format!("{} | {} | Mov {} | Upk {}{}", u.role.name(), cs_str, u.moves, u.upkeep, xp_str);
+            unit_items.push((ProductionItem::Unit(u.id), name, cost, detail, is_uniq));
         }
     }
 
-    let mut bldg_items: Vec<(ProductionItem, String, i32, String)> = Vec::new();
-    let mut wonder_items: Vec<(ProductionItem, String, i32, String)> = Vec::new();
-    let mut built_items: Vec<(String, String, bool)> = Vec::new();
+    let mut bldg_items: Vec<(ProductionItem, String, i32, String, bool)> = Vec::new();
+    let mut wonder_items: Vec<(ProductionItem, String, i32, String, bool)> = Vec::new();
+    let mut built_items: Vec<(u8, String, String, bool, bool)> = Vec::new();
 
     let built_bits = world.cities.buildings[ci];
     for b in &rules.buildings {
-        if (built_bits & (1u64 << b.id)) != 0 {
-            built_items.push((b.name.clone(), format_building_detail(b), b.is_wonder));
-        } else if rules.can_build_building(cs.tech_bits, built_bits, world.wonders_built, b.id) {
+        let is_uniq = b.unique_to_civ.is_some();
+        if (built_bits & (1u128 << b.id)) != 0 {
+            built_items.push((b.id, b.name.clone(), format_building_detail(b), b.is_wonder, is_uniq));
+        } else if rules.can_build_building_for_civ(cs.tech_bits, built_bits, world.wonders_built, tpl_idx, b.id) {
             let cost = Ruleset::scaled_cost(b.cost, world.config.rules.speed);
             let detail = format_building_detail(b);
-            if b.is_wonder {
-                wonder_items.push((ProductionItem::Building(b.id), b.name.clone(), cost, detail));
+            let name = if is_uniq {
+                format!("[UNIQUE] {}", b.name)
             } else {
-                bldg_items.push((ProductionItem::Building(b.id), b.name.clone(), cost, detail));
+                b.name.clone()
+            };
+            if b.is_wonder {
+                wonder_items.push((ProductionItem::Building(b.id), name, cost, detail, false));
+            } else {
+                bldg_items.push((ProductionItem::Building(b.id), name, cost, detail, is_uniq));
             }
         }
     }
@@ -1501,7 +1670,7 @@ fn draw_city_modal(
         if ui_button(
             r,
             lbl,
-            if active { Color::new(0.16, 0.34, 0.48, 1.0) } else { BG_CARD },
+            if active { Color::new(0.16, 0.34, 0.48, 1.0) } else { ui.card_bg() },
             if active { *accent } else { BORDER_DIM },
             ui.fs(12.0),
         ) {
@@ -1514,7 +1683,9 @@ fn draw_city_modal(
     let footer_h = ui.dp(42.0);
     let list_h = (rect.y + rect.h - footer_h - list_top).max(ui.dp(80.0));
     let list_area = Rect::new(rect.x + pad, list_top, rect.w - pad * 2.0, list_h);
-    let row_h = ui.dp(50.0);
+    let row_h = ui.dp(52.0);
+    let text_x = list_area.x + ui.dp(44.0);
+    let icon_cx = list_area.x + ui.dp(22.0);
 
     let max_scroll = match *city_tab {
         CityTab::Built => {
@@ -1536,28 +1707,42 @@ fn draw_city_modal(
                 if has_rail {
                     let ry = list_top - scroll.offset;
                     if ry >= list_top - ui.dp(4.0) && ry + row_h <= list_top + list_h + ui.dp(4.0) {
-                        draw_rectangle(list_area.x, ry, list_area.w, row_h - ui.dp(4.0), Color::new(0.14, 0.24, 0.32, 0.96));
-                        draw_text("Railroad Hub (Infrastructure)", list_area.x + ui.dp(8.0), ry + ui.dp(19.0), ui.fs(14.0), ACCENT_CYAN);
-                        draw_text("+15% City Production throughput!", list_area.x + ui.dp(8.0), ry + ui.dp(37.0), ui.fs(11.5), LIGHTGRAY);
+                        draw_panel(ui, Rect::new(list_area.x, ry, list_area.w, row_h - ui.dp(4.0)), Color::new(0.14, 0.24, 0.32, 0.96), ACCENT_CYAN);
+                        draw_worker_order_icon(ui.theme, icon_cx, ry + (row_h - ui.dp(4.0)) * 0.5, ui.dp(13.5), WorkerOrder::BuildRailroad);
+                        draw_text("Railroad Hub (Infrastructure)", text_x, ry + ui.dp(20.0), ui.fs(14.0), ACCENT_CYAN);
+                        draw_text("+15% City Production throughput!", text_x, ry + ui.dp(38.0), ui.fs(11.5), LIGHTGRAY);
                     }
                     row_idx += 1;
                 }
-                for (name, detail, is_w) in &built_items {
+                for (bid, name, detail, is_w, is_ub) in &built_items {
                     let ry = list_top + (row_idx as f32) * row_h - scroll.offset;
                     row_idx += 1;
                     if ry < list_top - ui.dp(4.0) || ry + row_h > list_top + list_h + ui.dp(4.0) {
                         continue;
                     }
-                    draw_rectangle(list_area.x, ry, list_area.w, row_h - ui.dp(4.0), BG_CARD);
-                    let tag = if *is_w { "[WONDER] " } else { "" };
+                    let bdef = &rules.buildings[*bid as usize];
+                    draw_panel(
+                        ui,
+                        Rect::new(list_area.x, ry, list_area.w, row_h - ui.dp(4.0)),
+                        ui.card_bg(),
+                        if *is_w || *is_ub { BORDER_GOLD } else { BORDER_DIM },
+                    );
+                    draw_building_icon(ui.theme, icon_cx, ry + (row_h - ui.dp(4.0)) * 0.5, ui.dp(13.5), bdef, civ_col);
+                    let tag = if *is_w {
+                        "[WONDER] "
+                    } else if *is_ub {
+                        "[UNIQUE] "
+                    } else {
+                        ""
+                    };
                     draw_text(
                         &format!("{tag}{name}"),
-                        list_area.x + ui.dp(8.0),
-                        ry + ui.dp(19.0),
+                        text_x,
+                        ry + ui.dp(20.0),
                         ui.fs(14.0),
-                        if *is_w { ACCENT_GOLD } else { ACCENT_GREEN },
+                        if *is_w || *is_ub { ACCENT_GOLD } else { ACCENT_GREEN },
                     );
-                    draw_text(detail, list_area.x + ui.dp(8.0), ry + ui.dp(37.0), ui.fs(11.5), LIGHTGRAY);
+                    draw_text(detail, text_x, ry + ui.dp(38.0), ui.fs(11.5), LIGHTGRAY);
                 }
             }
             ms
@@ -1582,39 +1767,79 @@ fn draw_city_modal(
                 draw_text(empty_msg, list_area.x, list_top + ui.dp(32.0), ui.fs(14.0), LIGHTGRAY);
             }
 
-            for (idx, (item, label, cost, detail)) in items.iter().enumerate() {
+            for (idx, (item, label, cost, detail, is_uniq)) in items.iter().enumerate() {
                 let ry = list_top + (idx as f32) * row_h - scroll.offset;
                 if ry < list_top - ui.dp(4.0) || ry + row_h > list_top + list_h + ui.dp(4.0) {
                     continue;
                 }
                 let is_cur = world.cities.producing[ci] == Some(*item);
-                draw_rectangle(
-                    list_area.x,
-                    ry,
-                    list_area.w,
-                    row_h - ui.dp(4.0),
-                    if is_cur { Color::new(0.16, 0.28, 0.40, 0.98) } else { BG_CARD },
+                let card_r = Rect::new(list_area.x, ry, list_area.w, row_h - ui.dp(4.0));
+                let card_bdr = if is_cur {
+                    ACCENT_CYAN
+                } else if *is_uniq || is_wonder_tab {
+                    BORDER_GOLD
+                } else {
+                    BORDER_DIM
+                };
+                draw_panel(
+                    ui,
+                    card_r,
+                    if is_cur { Color::new(0.16, 0.28, 0.40, 0.98) } else { ui.card_bg() },
+                    card_bdr,
                 );
-                let turns =
-                    ((*cost - world.cities.prod_stored[ci]).max(1) + y.prod.max(1) as i32 - 1) / y.prod.max(1) as i32;
+
+                // Miniature procedural Unit or Building/Wonder sprite on every row!
+                let icon_cy = ry + (row_h - ui.dp(4.0)) * 0.5;
+                match *item {
+                    ProductionItem::Unit(uk) => {
+                        let udef = &rules.units[uk as usize];
+                        let era_t = udef.tech.map_or(0, |t| rules.techs[t as usize].era);
+                        draw_unit_sprite(
+                            ui.theme,
+                            icon_cx,
+                            icon_cy,
+                            ui.dp(14.0),
+                            udef.role,
+                            era_t,
+                            *is_uniq,
+                            civ_col,
+                            civ_acc,
+                            false,
+                            false,
+                        );
+                    }
+                    ProductionItem::Building(bid) => {
+                        let bdef = &rules.buildings[bid as usize];
+                        draw_building_icon(ui.theme, icon_cx, icon_cy, ui.dp(13.5), bdef, civ_col);
+                    }
+                }
+
+                // Honor Egypt / France Wonder production bonus in turn estimate!
+                let eff_prod = if is_wonder_tab {
+                    let wp = rules.civs[tpl_idx as usize].wonder_prod_pct as i32;
+                    ((y.prod.max(1) as i32) * (100 + wp) / 100).max(1)
+                } else {
+                    y.prod.max(1) as i32
+                };
+                let turns = ((*cost - world.cities.prod_stored[ci]).max(1) + eff_prod - 1) / eff_prod;
                 draw_text(
                     label,
-                    list_area.x + ui.dp(8.0),
-                    ry + ui.dp(19.0),
+                    text_x,
+                    ry + ui.dp(20.0),
                     ui.fs(14.0),
-                    if is_wonder_tab { ACCENT_GOLD } else { WHITE },
+                    if is_wonder_tab || *is_uniq { ACCENT_GOLD } else { WHITE },
                 );
-                draw_text(detail, list_area.x + ui.dp(8.0), ry + ui.dp(38.0), ui.fs(11.5), LIGHTGRAY);
+                draw_text(detail, text_x, ry + ui.dp(39.0), ui.fs(11.5), LIGHTGRAY);
 
                 let bw = ui.dp(74.0);
-                let bh = row_h - ui.dp(14.0);
+                let bh = row_h - ui.dp(16.0);
                 let build_x = if is_wonder_tab {
                     list_area.x + list_area.w - bw - ui.dp(6.0)
                 } else {
                     list_area.x + list_area.w - bw * 2.0 - ui.dp(10.0)
                 };
                 if ui_button(
-                    Rect::new(build_x, ry + ui.dp(5.0), bw, bh),
+                    Rect::new(build_x, ry + ui.dp(6.0), bw, bh),
                     &format!("{}t", turns.max(1)),
                     Color::new(0.14, 0.38, 0.24, 1.0),
                     ACCENT_GREEN,
@@ -1627,7 +1852,7 @@ fn draw_city_modal(
                     let gold_cost = rush_buy_cost(world, rules, civ, *item);
                     let can_buy = cs.gold >= gold_cost;
                     if ui_button(
-                        Rect::new(build_x + bw + ui.dp(6.0), ry + ui.dp(5.0), bw, bh),
+                        Rect::new(build_x + bw + ui.dp(6.0), ry + ui.dp(6.0), bw, bh),
                         &format!("{gold_cost}g"),
                         if can_buy { Color::new(0.42, 0.32, 0.10, 1.0) } else { Color::new(0.16, 0.16, 0.20, 0.8) },
                         if can_buy { ACCENT_GOLD } else { BORDER_DIM },
@@ -1911,17 +2136,17 @@ fn draw_diplo_modal(
         if ry < list_top - ui.dp(4.0) || ry + row_h > list_top + list_h + ui.dp(4.0) {
             continue;
         }
-        draw_rectangle(area.x, ry, area.w, row_h - ui.dp(4.0), BG_CARD);
         let sw_col = Color::from_rgba(other.color[0], other.color[1], other.color[2], 255);
+        draw_panel(ui, Rect::new(area.x, ry, area.w, row_h - ui.dp(4.0)), ui.card_bg(), sw_col);
         draw_rectangle(area.x + ui.dp(4.0), ry + ui.dp(6.0), ui.dp(10.0), row_h - ui.dp(16.0), sw_col);
 
         let st = world.diplo.status(hciv, other.id);
         let tpl = &rules.civs[other.template_idx as usize];
         draw_text(
-            &format!("{}  (Score {})", other.name, other.score),
+            &format!("{} ({})  |  Score {}", other.name, tpl.leader, other.score),
             area.x + ui.dp(20.0),
             ry + ui.dp(20.0),
-            ui.fs(14.5),
+            ui.fs(14.0),
             WHITE,
         );
         draw_text(

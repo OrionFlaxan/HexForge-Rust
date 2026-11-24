@@ -334,7 +334,7 @@ pub fn worker_order_turns(world: &World, rules: &Ruleset, civ: CivId, order: Wor
 
     // Great Pyramids wonder speedup (-1 turn!)
     if let Some(pyr) = rules.pyramids_building {
-        let mask = 1u64 << pyr;
+        let mask = 1u128 << pyr;
         for ci in 0..world.cities.len() {
             if world.cities.alive[ci] && world.cities.civ[ci] == civ && (world.cities.buildings[ci] & mask) != 0 {
                 scaled -= 1;
@@ -349,6 +349,10 @@ pub fn worker_order_turns(world: &World, rules: &Ruleset, civ: CivId, order: Wor
             scaled -= 1;
         }
     }
+
+    // Civ trait worker speed bonus (Rome / Inca: -1 turn!)
+    let tpl = &rules.civs[world.civs[civ as usize].template_idx as usize];
+    scaled -= tpl.worker_speed_bonus as i32;
 
     scaled.clamp(1, 8) as u8
 }
@@ -587,7 +591,8 @@ pub fn pillage_tile(world: &mut World, rules: &Ruleset, unit: UnitId) -> bool {
     world.units.moves_halves[ui] = world.units.moves_halves[ui].saturating_sub(2);
     world.units.fortified[ui] = false;
     world.units.hp[ui] = (world.units.hp[ui] + 20).min(100);
-    world.civs[civ as usize].gold += 20;
+    let pillage_bonus = rules.civs[world.civs[civ as usize].template_idx as usize].pillage_gold_bonus;
+    world.civs[civ as usize].gold += 20 + pillage_bonus;
 
     if world.civs[civ as usize].is_human {
         world.mark_nearby_civs_dirty(pos, 6);

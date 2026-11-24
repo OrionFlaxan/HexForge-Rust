@@ -38,6 +38,11 @@ pub struct UnitDef {
     pub tech: Option<TechId>,
     pub upgrades_to: Option<UnitKindId>,
     pub city_attack_bonus: i16,
+    pub starting_xp: u16,
+    /// Template index of the civilization that exclusively trains this Unique Unit.
+    pub unique_to_civ: Option<u8>,
+    /// Generic base unit replaced by this Unique Unit.
+    pub replaces: Option<UnitKindId>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +69,10 @@ pub struct BuildingDef {
     pub is_wonder: bool,
     pub grants_free_tech: bool,
     pub wins_science: bool,
+    /// Template index of the civilization that exclusively constructs this Unique Building.
+    pub unique_to_civ: Option<u8>,
+    /// Generic base building replaced by this Unique Building.
+    pub replaces: Option<BuildingId>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +101,7 @@ pub struct PolicyDef {
 #[derive(Debug, Clone)]
 pub struct CivDef {
     pub name: String,
+    pub leader: String,
     pub color: [u8; 3],
     pub accent: [u8; 3],
     pub aggression: u8,
@@ -100,13 +110,28 @@ pub struct CivDef {
     pub trait_name: String,
     pub trait_desc: String,
     pub prod_pct: i16,
+    pub wonder_prod_pct: i16,
     pub sci_pct: i16,
     pub gold_pct: i16,
     pub combat_pct: i16,
     pub cavalry_pct: i16,
+    pub ranged_pct: i16,
+    pub naval_pct: i16,
     pub city_food: i16,
+    pub city_prod: i16,
+    pub city_gold: i16,
+    pub city_science: i16,
     pub city_culture: i16,
+    pub city_defense: i16,
     pub supply_bonus: i16,
+    pub unit_xp: i16,
+    pub rush_discount_pct: i16,
+    pub worker_speed_bonus: u8,
+    pub pillage_gold_bonus: i32,
+    pub full_strength_when_wounded: bool,
+    pub starts_with_tech: Option<TechId>,
+    pub unique_unit: Option<UnitKindId>,
+    pub unique_building: Option<BuildingId>,
     pub cities: Vec<String>,
 }
 
@@ -210,6 +235,12 @@ struct RawUnit {
     upgrades_to: Option<String>,
     #[serde(default)]
     city_attack_bonus: i16,
+    #[serde(default)]
+    starting_xp: u16,
+    #[serde(default)]
+    unique_to_civ: Option<String>,
+    #[serde(default)]
+    replaces: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -251,6 +282,10 @@ struct RawBuilding {
     grants_free_tech: bool,
     #[serde(default)]
     wins_science: bool,
+    #[serde(default)]
+    unique_to_civ: Option<String>,
+    #[serde(default)]
+    replaces: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -291,6 +326,8 @@ struct RawPolicy {
 #[derive(Deserialize)]
 struct RawCiv {
     name: String,
+    #[serde(default)]
+    leader: String,
     color: [u8; 3],
     accent: [u8; 3],
     aggression: u8,
@@ -303,6 +340,8 @@ struct RawCiv {
     #[serde(default)]
     prod_pct: i16,
     #[serde(default)]
+    wonder_prod_pct: i16,
+    #[serde(default)]
     sci_pct: i16,
     #[serde(default)]
     gold_pct: i16,
@@ -311,11 +350,35 @@ struct RawCiv {
     #[serde(default)]
     cavalry_pct: i16,
     #[serde(default)]
+    ranged_pct: i16,
+    #[serde(default)]
+    naval_pct: i16,
+    #[serde(default)]
     city_food: i16,
+    #[serde(default)]
+    city_prod: i16,
+    #[serde(default)]
+    city_gold: i16,
+    #[serde(default)]
+    city_science: i16,
     #[serde(default)]
     city_culture: i16,
     #[serde(default)]
+    city_defense: i16,
+    #[serde(default)]
     supply_bonus: i16,
+    #[serde(default)]
+    unit_xp: i16,
+    #[serde(default)]
+    rush_discount_pct: i16,
+    #[serde(default)]
+    worker_speed_bonus: u8,
+    #[serde(default)]
+    pillage_gold_bonus: i32,
+    #[serde(default)]
+    full_strength_when_wounded: bool,
+    #[serde(default)]
+    starts_with_tech: Option<String>,
     cities: Vec<String>,
 }
 
@@ -342,8 +405,15 @@ impl Ruleset {
     pub fn from_toml(src: &str) -> Result<Self, toml::de::Error> {
         let raw: RawRuleset = toml::from_str(src)?;
         assert!(raw.techs.len() <= 128, "TechBits (u128) supports up to 128 techs");
-        assert!(raw.buildings.len() <= 64, "BuildingBits supports up to 64 buildings");
+        assert!(raw.buildings.len() <= 128, "BuildingBits (u128) supports up to 128 buildings");
         assert!(raw.policies.len() <= 32, "PolicyBits supports up to 32 policies");
+        assert!(raw.civs.len() <= 64, "Ruleset supports up to 64 civ templates");
+
+        // Build civ name lookup first so unique_to_civ on units & buildings resolves in O(1)
+        let mut civ_name_map: HashMap<&str, u8> = HashMap::with_capacity(raw.civs.len());
+        for (i, c) in raw.civs.iter().enumerate() {
+            civ_name_map.insert(c.name.as_str(), i as u8);
+        }
 
         let mut tech_map = HashMap::with_capacity(raw.techs.len());
         for (i, t) in raw.techs.iter().enumerate() {
@@ -437,6 +507,7 @@ impl Ruleset {
             unit_map.insert(u.id.as_str(), i as UnitKindId);
         }
 
+        let mut civ_uu: Vec<Option<UnitKindId>> = vec![None; raw.civs.len()];
         let mut units = Vec::with_capacity(raw.units.len());
         let mut settler_kind = 0;
         let mut worker_kind = 0;
@@ -463,6 +534,19 @@ impl Ruleset {
                 .upgrades_to
                 .as_deref()
                 .map(|k| *unit_map.get(k).unwrap_or_else(|| panic!("Unknown unit upgrade '{k}'")));
+            let unique_to_civ = u.unique_to_civ.as_deref().map(|cname| {
+                *civ_name_map
+                    .get(cname)
+                    .unwrap_or_else(|| panic!("Unknown unique_to_civ '{cname}' for unit '{}'", u.id))
+            });
+            let replaces = u.replaces.as_deref().map(|rk| {
+                *unit_map
+                    .get(rk)
+                    .unwrap_or_else(|| panic!("Unknown replaces unit '{rk}' for unit '{}'", u.id))
+            });
+            if let Some(ctpl) = unique_to_civ {
+                civ_uu[ctpl as usize] = Some(id);
+            }
             units.push(UnitDef {
                 id,
                 key: u.id.clone(),
@@ -478,9 +562,18 @@ impl Ruleset {
                 tech,
                 upgrades_to,
                 city_attack_bonus: u.city_attack_bonus,
+                starting_xp: u.starting_xp,
+                unique_to_civ,
+                replaces,
             });
         }
 
+        let mut building_map = HashMap::with_capacity(raw.buildings.len());
+        for (i, b) in raw.buildings.iter().enumerate() {
+            building_map.insert(b.id.as_str(), i as BuildingId);
+        }
+
+        let mut civ_ub: Vec<Option<BuildingId>> = vec![None; raw.civs.len()];
         let mut buildings = Vec::with_capacity(raw.buildings.len());
         let mut space_center_building = None;
         let mut pyramids_building = None;
@@ -496,6 +589,19 @@ impl Ruleset {
                 .tech
                 .as_deref()
                 .map(|k| *tech_map.get(k).unwrap_or_else(|| panic!("Unknown tech '{k}'")));
+            let unique_to_civ = b.unique_to_civ.as_deref().map(|cname| {
+                *civ_name_map
+                    .get(cname)
+                    .unwrap_or_else(|| panic!("Unknown unique_to_civ '{cname}' for building '{}'", b.id))
+            });
+            let replaces = b.replaces.as_deref().map(|rk| {
+                *building_map
+                    .get(rk)
+                    .unwrap_or_else(|| panic!("Unknown replaces building '{rk}' for building '{}'", b.id))
+            });
+            if let Some(ctpl) = unique_to_civ {
+                civ_ub[ctpl as usize] = Some(id);
+            }
             buildings.push(BuildingDef {
                 id,
                 key: b.id.clone(),
@@ -519,6 +625,8 @@ impl Ruleset {
                 is_wonder: b.is_wonder,
                 grants_free_tech: b.grants_free_tech,
                 wins_science: b.wins_science,
+                unique_to_civ,
+                replaces,
             });
         }
 
@@ -556,27 +664,51 @@ impl Ruleset {
             })
             .collect();
 
-        let civs = raw
+        let civs: Vec<CivDef> = raw
             .civs
-            .into_iter()
-            .map(|c| CivDef {
-                name: c.name,
-                color: c.color,
-                accent: c.accent,
-                aggression: c.aggression,
-                science_bias: c.science_bias,
-                expansion: c.expansion,
-                trait_name: c.trait_name,
-                trait_desc: c.trait_desc,
-                prod_pct: c.prod_pct,
-                sci_pct: c.sci_pct,
-                gold_pct: c.gold_pct,
-                combat_pct: c.combat_pct,
-                cavalry_pct: c.cavalry_pct,
-                city_food: c.city_food,
-                city_culture: c.city_culture,
-                supply_bonus: c.supply_bonus,
-                cities: c.cities,
+            .iter()
+            .enumerate()
+            .map(|(i, c)| {
+                let starts_with_tech = c.starts_with_tech.as_deref().map(|tk| {
+                    *tech_map
+                        .get(tk)
+                        .unwrap_or_else(|| panic!("Unknown starts_with_tech '{tk}' for civ '{}'", c.name))
+                });
+                CivDef {
+                    name: c.name.clone(),
+                    leader: c.leader.clone(),
+                    color: c.color,
+                    accent: c.accent,
+                    aggression: c.aggression,
+                    science_bias: c.science_bias,
+                    expansion: c.expansion,
+                    trait_name: c.trait_name.clone(),
+                    trait_desc: c.trait_desc.clone(),
+                    prod_pct: c.prod_pct,
+                    wonder_prod_pct: c.wonder_prod_pct,
+                    sci_pct: c.sci_pct,
+                    gold_pct: c.gold_pct,
+                    combat_pct: c.combat_pct,
+                    cavalry_pct: c.cavalry_pct,
+                    ranged_pct: c.ranged_pct,
+                    naval_pct: c.naval_pct,
+                    city_food: c.city_food,
+                    city_prod: c.city_prod,
+                    city_gold: c.city_gold,
+                    city_science: c.city_science,
+                    city_culture: c.city_culture,
+                    city_defense: c.city_defense,
+                    supply_bonus: c.supply_bonus,
+                    unit_xp: c.unit_xp,
+                    rush_discount_pct: c.rush_discount_pct,
+                    worker_speed_bonus: c.worker_speed_bonus,
+                    pillage_gold_bonus: c.pillage_gold_bonus,
+                    full_strength_when_wounded: c.full_strength_when_wounded,
+                    starts_with_tech,
+                    unique_unit: civ_uu[i],
+                    unique_building: civ_ub[i],
+                    cities: c.cities.clone(),
+                }
             })
             .collect();
 
@@ -645,9 +777,25 @@ impl Ruleset {
         ((base_cost * speed.cost_pct()) / 100).max(5)
     }
 
+    /// Resolve upgrade target for `kind` owned by `civ_tpl` (auto-upgrading into Civ's Unique Unit when applicable!).
+    #[inline]
+    pub fn upgrade_target_for_civ(&self, civ_tpl: u8, kind: UnitKindId) -> Option<UnitKindId> {
+        let base_upg = self.units[kind as usize].upgrades_to?;
+        if let Some(uu_id) = self.civs.get(civ_tpl as usize).and_then(|c| c.unique_unit) {
+            if self.units[uu_id as usize].replaces == Some(base_upg) {
+                return Some(uu_id);
+            }
+        }
+        Some(base_upg)
+    }
+
+    /// Non-civ-specific unit check (only considers generic base units).
     #[inline]
     pub fn can_train_unit(&self, tech_bits: TechBits, kind: UnitKindId) -> bool {
         let def = &self.units[kind as usize];
+        if def.unique_to_civ.is_some() {
+            return false;
+        }
         let unlocked = def.tech.map_or(true, |t| Self::has_tech(tech_bits, t));
         if !unlocked {
             return false;
@@ -663,6 +811,35 @@ impl Ruleset {
         true
     }
 
+    /// Civ-aware unit check: enforces Civ-exclusive Unique Units & automatically replaces their generic counterpart!
+    #[inline]
+    pub fn can_train_unit_for_civ(&self, tech_bits: TechBits, civ_tpl: u8, kind: UnitKindId) -> bool {
+        let def = &self.units[kind as usize];
+        if let Some(owner_tpl) = def.unique_to_civ {
+            if owner_tpl != civ_tpl {
+                return false;
+            }
+        } else if let Some(uu_id) = self.civs.get(civ_tpl as usize).and_then(|c| c.unique_unit) {
+            if self.units[uu_id as usize].replaces == Some(kind) {
+                return false; // Replaced by this civ's Unique Unit!
+            }
+        }
+        let unlocked = def.tech.map_or(true, |t| Self::has_tech(tech_bits, t));
+        if !unlocked {
+            return false;
+        }
+        if let Some(upg) = self.upgrade_target_for_civ(civ_tpl, kind) {
+            if self.units[upg as usize]
+                .tech
+                .map_or(true, |t| Self::has_tech(tech_bits, t))
+            {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Non-civ-specific building check (uses `u128` `BuildingBits`, excludes civ-unique structures).
     #[inline]
     pub fn can_build_building(
         &self,
@@ -671,11 +848,56 @@ impl Ruleset {
         wonders_built: BuildingBits,
         b: BuildingId,
     ) -> bool {
-        let mask = 1u64 << b;
+        let def = &self.buildings[b as usize];
+        if def.unique_to_civ.is_some() {
+            return false;
+        }
+        let mask = 1u128 << b;
         if (built_bits & mask) != 0 {
             return false;
         }
+        if def.is_wonder && (wonders_built & mask) != 0 {
+            return false;
+        }
+        def.tech.map_or(true, |t| Self::has_tech(tech_bits, t))
+    }
+
+    /// Civ-aware building check: enforces Civ-exclusive Unique Buildings & avoids duplicate base/UB structures!
+    #[inline]
+    pub fn can_build_building_for_civ(
+        &self,
+        tech_bits: TechBits,
+        built_bits: BuildingBits,
+        wonders_built: BuildingBits,
+        civ_tpl: u8,
+        b: BuildingId,
+    ) -> bool {
         let def = &self.buildings[b as usize];
+        if let Some(owner_tpl) = def.unique_to_civ {
+            if owner_tpl != civ_tpl {
+                return false;
+            }
+        } else if let Some(ub_id) = self.civs.get(civ_tpl as usize).and_then(|c| c.unique_building) {
+            if self.buildings[ub_id as usize].replaces == Some(b) {
+                return false; // Replaced by this civ's Unique Building!
+            }
+        }
+        let mask = 1u128 << b;
+        if (built_bits & mask) != 0 {
+            return false;
+        }
+        // Prevent double-building a base building and its UB (or two UBs sharing the same base) in conquered cities
+        let base_slot = def.replaces.unwrap_or(b);
+        if (built_bits & (1u128 << base_slot)) != 0 {
+            return false;
+        }
+        if built_bits != 0 {
+            for other in &self.buildings {
+                if other.replaces == Some(base_slot) && (built_bits & (1u128 << other.id)) != 0 {
+                    return false;
+                }
+            }
+        }
         if def.is_wonder && (wonders_built & mask) != 0 {
             return false;
         }
@@ -740,6 +962,26 @@ impl Ruleset {
         for u in &self.units {
             if u.role == role && self.can_train_unit(tech_bits, u.id) {
                 let score = u.strength.max(u.ranged_strength);
+                if best.map_or(true, |(_, bs)| score > bs) {
+                    best = Some((u.id, score));
+                }
+            }
+        }
+        best.map(|(id, _)| id)
+    }
+
+    #[inline]
+    pub fn best_unit_for_role_civ(
+        &self,
+        tech_bits: TechBits,
+        civ_tpl: u8,
+        role: UnitRole,
+    ) -> Option<UnitKindId> {
+        let mut best: Option<(UnitKindId, i32)> = None;
+        for u in &self.units {
+            if u.role == role && self.can_train_unit_for_civ(tech_bits, civ_tpl, u.id) {
+                let unique_bonus = if u.unique_to_civ == Some(civ_tpl) { 2 } else { 0 };
+                let score = (u.strength.max(u.ranged_strength) as i32) * 10 + unique_bonus;
                 if best.map_or(true, |(_, bs)| score > bs) {
                     best = Some((u.id, score));
                 }

@@ -9,7 +9,7 @@ pub type UnitKindId = u8;
 pub type BuildingId = u8;
 pub type PolicyId = u8;
 pub type TechBits = u128;
-pub type BuildingBits = u64;
+pub type BuildingBits = u128;
 pub type PolicyBits = u32;
 
 pub const INVALID_TILE: TileId = u32::MAX;
@@ -598,6 +598,14 @@ pub struct VictoryState {
     pub turn: u32,
 }
 
+/// Mandatory or optional empire decision required before ending the human turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PendingChoice {
+    ChooseTech,
+    ChooseProduction(CityId),
+    AdoptPolicy,
+}
+
 /// Customizable campaign rules chosen on the New Game screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameRules {
@@ -609,7 +617,7 @@ pub struct GameRules {
     pub allow_corps_armies: bool,
     pub fog_of_war: bool,
     pub no_turn_limit: bool,
-    /// Template index (0..22) of the civilization chosen by the human player.
+    /// Template index (0..24) of the civilization chosen by the human player.
     pub human_civ_template: u8,
 }
 

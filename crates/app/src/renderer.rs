@@ -1,11 +1,12 @@
 use crate::camera::MapCamera;
-use crate::settings::{AppOptions, UiMetrics};
+use crate::settings::{draw_panel, AppOptions, UiMetrics, UiTheme};
+use crate::sprites::{draw_city_sprite, draw_improvement_sprite, draw_unit_sprite};
 use hexforge_sim::economy::tile_yields;
 use hexforge_sim::pathing::ReachableSet;
 use hexforge_sim::ruleset::Ruleset;
 use hexforge_sim::types::{
     CivId, Elevation, Feature, Improvement, Resource, Road, Terrain, TileId, UnitFormation,
-    UnitId, UnitRole, INVALID_CITY, INVALID_TILE, INVALID_UNIT, NO_CIV,
+    UnitId, INVALID_CITY, INVALID_TILE, INVALID_UNIT, NO_CIV,
 };
 use hexforge_sim::world::World;
 use macroquad::prelude::*;
@@ -34,22 +35,29 @@ fn civ_color(rgb: [u8; 3]) -> Color {
 }
 
 #[inline]
-fn terrain_base_color(t: Terrain, elev: Elevation) -> Color {
-    let mut c = match t {
-        Terrain::Ocean => Color::from_rgba(20, 56, 102, 255),
-        Terrain::Coast => Color::from_rgba(38, 102, 156, 255),
-        Terrain::Grassland => Color::from_rgba(86, 148, 66, 255),
-        Terrain::Plains => Color::from_rgba(162, 154, 82, 255),
-        Terrain::Desert => Color::from_rgba(208, 182, 118, 255),
-        Terrain::Tundra => Color::from_rgba(134, 148, 138, 255),
-        Terrain::Snow => Color::from_rgba(220, 230, 238, 255),
+fn terrain_base_color(t: Terrain, elev: Elevation, theme: UiTheme) -> Color {
+    let mut c = match (t, theme) {
+        (Terrain::Ocean, UiTheme::PixelArt) => Color::from_rgba(22, 62, 118, 255),
+        (Terrain::Coast, UiTheme::PixelArt) => Color::from_rgba(42, 114, 174, 255),
+        (Terrain::Grassland, UiTheme::PixelArt) => Color::from_rgba(88, 158, 68, 255),
+        (Terrain::Plains, UiTheme::PixelArt) => Color::from_rgba(170, 158, 82, 255),
+        (Terrain::Desert, UiTheme::PixelArt) => Color::from_rgba(218, 188, 118, 255),
+        (Terrain::Tundra, UiTheme::PixelArt) => Color::from_rgba(138, 152, 144, 255),
+        (Terrain::Snow, UiTheme::PixelArt) => Color::from_rgba(226, 236, 244, 255),
+        (Terrain::Ocean, UiTheme::ModernSimple) => Color::from_rgba(18, 50, 92, 255),
+        (Terrain::Coast, UiTheme::ModernSimple) => Color::from_rgba(36, 94, 146, 255),
+        (Terrain::Grassland, UiTheme::ModernSimple) => Color::from_rgba(82, 142, 66, 255),
+        (Terrain::Plains, UiTheme::ModernSimple) => Color::from_rgba(156, 148, 84, 255),
+        (Terrain::Desert, UiTheme::ModernSimple) => Color::from_rgba(202, 178, 118, 255),
+        (Terrain::Tundra, UiTheme::ModernSimple) => Color::from_rgba(128, 142, 136, 255),
+        (Terrain::Snow, UiTheme::ModernSimple) => Color::from_rgba(216, 226, 236, 255),
     };
     if elev == Elevation::Hill {
         c.r *= 0.88;
         c.g *= 0.86;
         c.b *= 0.82;
     } else if elev == Elevation::Mountain {
-        c = Color::from_rgba(104, 102, 110, 255);
+        c = Color::from_rgba(104, 102, 112, 255);
     }
     c
 }
@@ -69,7 +77,7 @@ fn draw_hex_outline(cx: f32, cy: f32, r: f32, thickness: f32, color: Color) {
     draw_poly_lines(cx, cy, 6, r, 30.0, thickness, color);
 }
 
-/// Render the viewport-culled cylindrical hex world honoring `AppOptions` and `UiMetrics`.
+/// Render the viewport-culled cylindrical hex world honoring `UiTheme`, `AppOptions`, and `UiMetrics`.
 #[allow(clippy::too_many_arguments)]
 pub fn render_world(
     world: &World,
@@ -90,6 +98,7 @@ pub fn render_world(
     let r = cam.zoom;
     let r_dp = r / ui.scale; // zoom expressed in logical dp
     let ww = map.world_width();
+    let is_pixel = ui.theme == UiTheme::PixelArt;
 
     let (_, wy_top) = cam.screen_to_world(0.0, 0.0, sw, sh);
     let (_, wy_bot) = cam.screen_to_world(0.0, sh, sw, sh);
@@ -101,11 +110,19 @@ pub fn render_world(
     let wrap_min = (wx_left / ww).floor() as i32;
     let wrap_max = (wx_right / ww).floor() as i32;
 
-    let fog_unexplored = Color::from_rgba(14, 18, 26, 255);
-    let grid_line = Color::from_rgba(0, 0, 0, 44);
+    let fog_unexplored = if is_pixel {
+        Color::from_rgba(14, 16, 28, 255)
+    } else {
+        Color::from_rgba(12, 16, 22, 255)
+    };
+    let grid_line = if is_pixel {
+        Color::from_rgba(0, 0, 0, 58)
+    } else {
+        Color::from_rgba(255, 255, 255, 22)
+    };
     let effective_reveal = reveal_all || !world.config.rules.fog_of_war;
 
-    // PASS 1: Terrain, Elevation, Features, Rivers, Roads/Railroads, Resources, Yields, Borders
+    // PASS 1: Terrain, Pixel Dither, Elevation, Features, Rivers, Roads/Railroads, Improvements, Resources, Yields, Borders
     for wrap in wrap_min..=wrap_max {
         let x_offset = (wrap as f32) * ww;
         for row in row_min..=row_max {
@@ -138,8 +155,33 @@ pub fn render_world(
                 }
 
                 let dim = if visible { 1.0 } else { 0.52 };
-                let base = dim_color(terrain_base_color(map.terrain[ti], map.elevation[ti]), dim);
+                let base = dim_color(terrain_base_color(map.terrain[ti], map.elevation[ti], ui.theme), dim);
                 draw_filled_hex(sx, sy, r + 0.6, base);
+
+                // Retro 16-bit Pixel Art Terrain Dither & Ocean Wave Glints!
+                if is_pixel && r_dp >= 16.0 {
+                    let h = ((col as u32).wrapping_mul(374761393) ^ (row as u32).wrapping_mul(668265263)) & 7;
+                    let ps = (r * 0.10).clamp(2.0, 5.5);
+                    if map.terrain[ti].is_water() {
+                        if h < 4 {
+                            let wave = dim_color(Color::from_rgba(128, 198, 246, 105), dim);
+                            let wxo = ((h as f32) - 1.5) * r * 0.14;
+                            let wyo = (((h ^ 3) as f32) - 1.5) * r * 0.12;
+                            draw_rectangle(sx + wxo - ps, sy + wyo, ps * 2.4, ps * 0.65, wave);
+                            draw_rectangle(sx + wxo + ps * 0.6, sy + wyo + ps * 1.4, ps * 1.8, ps * 0.65, wave);
+                        }
+                    } else if map.elevation[ti] == Elevation::Flat && h < 5 {
+                        let speck = if h % 2 == 0 {
+                            Color::new(1.0, 1.0, 1.0, 0.08 * dim)
+                        } else {
+                            Color::new(0.0, 0.0, 0.0, 0.10 * dim)
+                        };
+                        let ox = ((h as f32) - 2.0) * r * 0.14;
+                        let oy = (((h * 3) % 5) as f32 - 2.0) * r * 0.12;
+                        draw_rectangle(sx + ox, sy + oy, ps, ps, speck);
+                        draw_rectangle(sx - ox * 0.8, sy - oy * 0.7, ps, ps, speck);
+                    }
+                }
 
                 let owner = map.owner[ti];
                 if owner != NO_CIV {
@@ -152,56 +194,91 @@ pub fn render_world(
                     draw_hex_outline(sx, sy, r, ui.dp(0.9), grid_line);
                 }
 
+                // Elevation (Stepped Pixel Blocks in PixelArt vs Smooth Triangles in ModernSimple)
                 if map.elevation[ti] == Elevation::Hill && r_dp >= 12.0 {
-                    let hc = dim_color(Color::from_rgba(128, 114, 82, 200), dim);
-                    draw_triangle(
-                        vec2(sx - r * 0.42, sy + r * 0.22),
-                        vec2(sx - r * 0.08, sy - r * 0.18),
-                        vec2(sx + r * 0.26, sy + r * 0.22),
-                        hc,
-                    );
-                    draw_triangle(
-                        vec2(sx - r * 0.12, sy + r * 0.28),
-                        vec2(sx + r * 0.20, sy - r * 0.08),
-                        vec2(sx + r * 0.48, sy + r * 0.28),
-                        hc,
-                    );
+                    let hc = dim_color(Color::from_rgba(130, 114, 78, 220), dim);
+                    let hc_hi = dim_color(Color::from_rgba(164, 148, 104, 210), dim);
+                    if is_pixel {
+                        draw_rectangle(sx - r * 0.42, sy + r * 0.04, r * 0.84, r * 0.18, hc);
+                        draw_rectangle(sx - r * 0.30, sy - r * 0.10, r * 0.56, r * 0.15, hc);
+                        draw_rectangle(sx - r * 0.18, sy - r * 0.20, r * 0.30, r * 0.11, hc_hi);
+                    } else {
+                        draw_triangle(
+                            vec2(sx - r * 0.42, sy + r * 0.22),
+                            vec2(sx - r * 0.08, sy - r * 0.18),
+                            vec2(sx + r * 0.26, sy + r * 0.22),
+                            hc,
+                        );
+                        draw_triangle(
+                            vec2(sx - r * 0.12, sy + r * 0.28),
+                            vec2(sx + r * 0.20, sy - r * 0.08),
+                            vec2(sx + r * 0.48, sy + r * 0.28),
+                            hc,
+                        );
+                    }
                 } else if map.elevation[ti] == Elevation::Mountain && r_dp >= 10.0 {
-                    let mc = dim_color(Color::from_rgba(78, 76, 86, 255), dim);
-                    let sc = dim_color(Color::from_rgba(235, 240, 248, 255), dim);
-                    draw_triangle(
-                        vec2(sx - r * 0.56, sy + r * 0.36),
-                        vec2(sx, sy - r * 0.54),
-                        vec2(sx + r * 0.56, sy + r * 0.36),
-                        mc,
-                    );
-                    draw_triangle(
-                        vec2(sx - r * 0.19, sy - r * 0.22),
-                        vec2(sx, sy - r * 0.54),
-                        vec2(sx + r * 0.19, sy - r * 0.22),
-                        sc,
-                    );
+                    let mc = dim_color(Color::from_rgba(78, 76, 88, 255), dim);
+                    let mc_dark = dim_color(Color::from_rgba(54, 54, 66, 255), dim);
+                    let sc = dim_color(Color::from_rgba(238, 244, 252, 255), dim);
+                    if is_pixel {
+                        draw_rectangle(sx - r * 0.52, sy + r * 0.12, r * 1.04, r * 0.24, mc_dark);
+                        draw_rectangle(sx - r * 0.40, sy - r * 0.08, r * 0.80, r * 0.22, mc);
+                        draw_rectangle(sx - r * 0.26, sy - r * 0.26, r * 0.52, r * 0.20, mc);
+                        draw_rectangle(sx - r * 0.16, sy - r * 0.42, r * 0.32, r * 0.18, sc);
+                        draw_rectangle(sx - r * 0.08, sy - r * 0.54, r * 0.16, r * 0.14, sc);
+                    } else {
+                        draw_triangle(
+                            vec2(sx - r * 0.56, sy + r * 0.36),
+                            vec2(sx, sy - r * 0.54),
+                            vec2(sx + r * 0.56, sy + r * 0.36),
+                            mc,
+                        );
+                        draw_triangle(
+                            vec2(sx - r * 0.19, sy - r * 0.22),
+                            vec2(sx, sy - r * 0.54),
+                            vec2(sx + r * 0.19, sy - r * 0.22),
+                            sc,
+                        );
+                    }
                 }
 
+                // Features (Pixel Pine Trees & Jungles in PixelArt vs Smooth Vector in ModernSimple)
                 if r_dp >= 14.0 {
                     match map.feature[ti] {
                         Feature::Forest => {
-                            let tc = dim_color(Color::from_rgba(32, 86, 44, 240), dim);
-                            for (ox, oy) in [(-0.28, 0.05), (0.24, 0.08), (0.0, -0.22)] {
+                            let tc = dim_color(Color::from_rgba(32, 92, 44, 245), dim);
+                            let tc_hi = dim_color(Color::from_rgba(52, 128, 62, 245), dim);
+                            let trunk = dim_color(Color::from_rgba(112, 74, 42, 240), dim);
+                            for (ox, oy) in [(-0.28, 0.04), (0.24, 0.08), (0.0, -0.22)] {
                                 let tx = sx + r * ox;
                                 let ty = sy + r * oy;
-                                draw_triangle(
-                                    vec2(tx - r * 0.18, ty + r * 0.18),
-                                    vec2(tx, ty - r * 0.20),
-                                    vec2(tx + r * 0.18, ty + r * 0.18),
-                                    tc,
-                                );
+                                if is_pixel {
+                                    draw_rectangle(tx - r * 0.05, ty + r * 0.10, r * 0.10, r * 0.12, trunk);
+                                    draw_rectangle(tx - r * 0.18, ty + r * 0.00, r * 0.36, r * 0.12, tc);
+                                    draw_rectangle(tx - r * 0.13, ty - r * 0.11, r * 0.26, r * 0.12, tc_hi);
+                                    draw_rectangle(tx - r * 0.07, ty - r * 0.20, r * 0.14, r * 0.10, tc_hi);
+                                } else {
+                                    draw_triangle(
+                                        vec2(tx - r * 0.18, ty + r * 0.18),
+                                        vec2(tx, ty - r * 0.20),
+                                        vec2(tx + r * 0.18, ty + r * 0.18),
+                                        tc,
+                                    );
+                                }
                             }
                         }
                         Feature::Jungle => {
-                            let jc = dim_color(Color::from_rgba(26, 118, 56, 235), dim);
+                            let jc = dim_color(Color::from_rgba(26, 122, 58, 240), dim);
+                            let jc_hi = dim_color(Color::from_rgba(54, 162, 76, 240), dim);
                             for (ox, oy) in [(-0.24, 0.04), (0.24, 0.06), (0.0, -0.18)] {
-                                draw_circle(sx + r * ox, sy + r * oy, r * 0.20, jc);
+                                let jx = sx + r * ox;
+                                let jy = sy + r * oy;
+                                if is_pixel {
+                                    draw_rectangle(jx - r * 0.18, jy - r * 0.12, r * 0.36, r * 0.24, jc);
+                                    draw_rectangle(jx - r * 0.12, jy - r * 0.18, r * 0.24, r * 0.12, jc_hi);
+                                } else {
+                                    draw_circle(jx, jy, r * 0.20, jc);
+                                }
                             }
                         }
                         Feature::Marsh => {
@@ -228,95 +305,42 @@ pub fn render_world(
                     }
                 }
 
-                // Roads, Railroads & 16 Distinct Tile Improvements
+                // Roads, Railroads & 16 Distinct Procedural Improvement Sprites
                 if r_dp >= 15.0 {
                     match map.road[ti] {
                         Road::Road => {
-                            draw_circle(sx, sy, r * 0.11, dim_color(Color::from_rgba(196, 162, 114, 230), dim));
+                            let rc = dim_color(Color::from_rgba(196, 162, 114, 235), dim);
+                            if is_pixel {
+                                draw_rectangle(sx - r * 0.12, sy - r * 0.08, r * 0.24, r * 0.16, rc);
+                            } else {
+                                draw_circle(sx, sy, r * 0.11, rc);
+                            }
                         }
                         Road::Railroad => {
-                            draw_circle(sx, sy, r * 0.14, dim_color(Color::from_rgba(64, 68, 78, 240), dim));
-                            draw_circle_lines(sx, sy, r * 0.14, ui.dp(1.4), dim_color(Color::from_rgba(235, 200, 90, 240), dim));
+                            let base_r = dim_color(Color::from_rgba(64, 68, 78, 245), dim);
+                            let rail = dim_color(Color::from_rgba(238, 204, 88, 245), dim);
+                            if is_pixel {
+                                draw_rectangle(sx - r * 0.18, sy - r * 0.10, r * 0.36, r * 0.20, base_r);
+                                draw_rectangle_lines(sx - r * 0.18, sy - r * 0.10, r * 0.36, r * 0.20, ui.dp(1.4), rail);
+                            } else {
+                                draw_circle(sx, sy, r * 0.14, base_r);
+                                draw_circle_lines(sx, sy, r * 0.14, ui.dp(1.4), rail);
+                            }
                         }
                         Road::None => {}
                     }
                     let imp = map.improvement[ti];
                     if imp != Improvement::None && world.cities.tile_city[ti] == INVALID_CITY {
-                        let ix = sx;
-                        let iy = sy + r * 0.30;
-                        match imp {
-                            Improvement::Farm => {
-                                let c = dim_color(Color::from_rgba(236, 206, 88, 235), dim);
-                                draw_rectangle_lines(ix - r * 0.24, iy - r * 0.08, r * 0.48, r * 0.18, ui.dp(1.3), c);
-                                draw_line(ix - r * 0.22, iy + r * 0.01, ix + r * 0.22, iy + r * 0.01, ui.dp(1.1), c);
-                            }
-                            Improvement::TerraceFarm => {
-                                let c = dim_color(Color::from_rgba(148, 230, 96, 235), dim);
-                                draw_line(ix - r * 0.26, iy - r * 0.06, ix + r * 0.26, iy - r * 0.06, ui.dp(1.6), c);
-                                draw_line(ix - r * 0.20, iy + r * 0.02, ix + r * 0.20, iy + r * 0.02, ui.dp(1.6), c);
-                                draw_line(ix - r * 0.14, iy + r * 0.10, ix + r * 0.14, iy + r * 0.10, ui.dp(1.6), c);
-                            }
-                            Improvement::Mine | Improvement::Quarry => {
-                                let c = dim_color(Color::from_rgba(196, 178, 142, 240), dim);
-                                draw_triangle_lines(
-                                    vec2(ix - r * 0.18, iy + r * 0.10),
-                                    vec2(ix, iy - r * 0.14),
-                                    vec2(ix + r * 0.18, iy + r * 0.10),
-                                    ui.dp(1.6),
-                                    c,
-                                );
-                            }
-                            Improvement::Pasture | Improvement::Plantation | Improvement::Camp => {
-                                let c = dim_color(Color::from_rgba(218, 178, 108, 235), dim);
-                                draw_poly_lines(ix, iy, 4, r * 0.16, 0.0, ui.dp(1.4), c);
-                            }
-                            Improvement::LumberMill => {
-                                let c = dim_color(Color::from_rgba(182, 118, 62, 240), dim);
-                                draw_rectangle(ix - r * 0.16, iy - r * 0.08, r * 0.32, r * 0.16, c);
-                            }
-                            Improvement::TradingPost => {
-                                let c = dim_color(Color::from_rgba(255, 214, 62, 240), dim);
-                                draw_poly(ix, iy, 4, r * 0.15, 0.0, c);
-                            }
-                            Improvement::Fort => {
-                                let c = dim_color(Color::from_rgba(202, 212, 224, 245), dim);
-                                draw_poly_lines(sx, sy, 5, r * 0.50, -90.0, ui.dp(2.0), c);
-                            }
-                            Improvement::OilWell => {
-                                let c = dim_color(Color::from_rgba(32, 36, 44, 245), dim);
-                                draw_triangle(
-                                    vec2(ix - r * 0.12, iy + r * 0.10),
-                                    vec2(ix, iy - r * 0.20),
-                                    vec2(ix + r * 0.12, iy + r * 0.10),
-                                    c,
-                                );
-                            }
-                            Improvement::PowerPlant | Improvement::SolarFarm => {
-                                let c = dim_color(Color::from_rgba(74, 198, 250, 240), dim);
-                                draw_rectangle(ix - r * 0.22, iy - r * 0.08, r * 0.44, r * 0.16, c);
-                                draw_rectangle_lines(ix - r * 0.22, iy - r * 0.08, r * 0.44, r * 0.16, ui.dp(1.2), YELLOW);
-                            }
-                            Improvement::ResearchOutpost => {
-                                let c = dim_color(Color::from_rgba(92, 232, 255, 240), dim);
-                                draw_circle(ix, iy, r * 0.14, c);
-                                draw_circle_lines(ix, iy, r * 0.20, ui.dp(1.2), WHITE);
-                            }
-                            Improvement::Airbase => {
-                                let c = dim_color(Color::from_rgba(128, 220, 255, 245), dim);
-                                draw_poly_lines(sx, sy, 5, r * 0.52, -90.0, ui.dp(1.9), c);
-                                draw_line(sx - r * 0.28, sy + r * 0.24, sx + r * 0.28, sy + r * 0.24, ui.dp(2.2), WHITE);
-                            }
-                            Improvement::Arcology => {
-                                let c = dim_color(Color::from_rgba(116, 246, 212, 245), dim);
-                                draw_poly(ix, iy - r * 0.04, 6, r * 0.20, 0.0, dim_color(Color::from_rgba(32, 92, 118, 220), dim));
-                                draw_poly_lines(ix, iy - r * 0.04, 6, r * 0.20, 0.0, ui.dp(1.6), c);
-                            }
-                            Improvement::None => {}
-                        }
+                        let (ix, iy, imp_sz) = if imp.is_fortification() {
+                            (sx, sy, r * 0.48)
+                        } else {
+                            (sx, sy + r * 0.30, r * 0.30)
+                        };
+                        draw_improvement_sprite(ui.theme, ix, iy, imp_sz, imp, dim);
 
                         // Pillaged indicator (bright red/orange flame X!)
                         if map.pillaged[ti] {
-                            let pc = dim_color(Color::from_rgba(255, 72, 42, 245), dim);
+                            let pc = dim_color(Color::from_rgba(255, 72, 42, 248), dim);
                             draw_line(ix - r * 0.18, iy - r * 0.14, ix + r * 0.18, iy + r * 0.14, ui.dp(2.2), pc);
                             draw_line(ix + r * 0.18, iy - r * 0.14, ix - r * 0.18, iy + r * 0.14, ui.dp(2.2), pc);
                         }
@@ -328,8 +352,8 @@ pub fn render_world(
                         let fs = (r * 0.34).clamp(ui.fs(9.5), ui.fs(15.0));
                         let bx = sx - r * 0.44;
                         let by_p = sy - r * 0.48;
-                        draw_rectangle(bx, by_p, ui.dp(22.0), ui.dp(14.0), Color::from_rgba(28, 22, 12, 220));
-                        draw_rectangle_lines(bx, by_p, ui.dp(22.0), ui.dp(14.0), ui.dp(1.1), Color::from_rgba(250, 206, 62, 240));
+                        draw_rectangle(bx, by_p, ui.dp(22.0), ui.dp(14.0), Color::from_rgba(28, 22, 12, 225));
+                        draw_rectangle_lines(bx, by_p, ui.dp(22.0), ui.dp(14.0), ui.dp(1.2), Color::from_rgba(250, 206, 62, 245));
                         draw_text(&lbl, bx + ui.dp(3.0), by_p + ui.dp(11.0), fs, Color::from_rgba(255, 224, 86, 255));
                     }
                 }
@@ -348,8 +372,15 @@ pub fn render_world(
                         Resource::None => BLANK,
                     };
                     let pr = (r * 0.15).max(ui.dp(3.0));
-                    draw_circle(sx + r * 0.36, sy - r * 0.30, pr, dim_color(rcol, dim));
-                    draw_circle_lines(sx + r * 0.36, sy - r * 0.30, pr, ui.dp(1.0), Color::from_rgba(15, 18, 24, 200));
+                    let rx = sx + r * 0.36;
+                    let ry = sy - r * 0.30;
+                    if is_pixel {
+                        draw_rectangle(rx - pr, ry - pr, pr * 2.0, pr * 2.0, dim_color(rcol, dim));
+                        draw_rectangle_lines(rx - pr, ry - pr, pr * 2.0, pr * 2.0, ui.dp(1.2), Color::from_rgba(15, 18, 24, 230));
+                    } else {
+                        draw_circle(rx, ry, pr, dim_color(rcol, dim));
+                        draw_circle_lines(rx, ry, pr, ui.dp(1.0), Color::from_rgba(15, 18, 24, 200));
+                    }
                 }
 
                 // Optional Tile Yield Dots (Food=Green, Prod=Orange, Gold=Yellow, Sci=Cyan)
@@ -363,21 +394,26 @@ pub fn render_world(
                     let pip_r = (r * 0.08).max(ui.dp(2.0));
                     let py = sy + r * 0.44;
                     let mut px = sx - r * 0.34;
-                    for _ in 0..y.food.clamp(0, 4) {
-                        draw_circle(px, py, pip_r, dim_color(Color::from_rgba(92, 232, 92, 240), dim));
+                    let mut draw_pip = |col: Color| {
+                        let c = dim_color(col, dim);
+                        if is_pixel {
+                            draw_rectangle(px - pip_r, py - pip_r, pip_r * 1.9, pip_r * 1.9, c);
+                        } else {
+                            draw_circle(px, py, pip_r, c);
+                        }
                         px += pip_r * 2.1;
+                    };
+                    for _ in 0..y.food.clamp(0, 4) {
+                        draw_pip(Color::from_rgba(92, 232, 92, 240));
                     }
                     for _ in 0..y.prod.clamp(0, 4) {
-                        draw_circle(px, py, pip_r, dim_color(Color::from_rgba(242, 152, 52, 240), dim));
-                        px += pip_r * 2.1;
+                        draw_pip(Color::from_rgba(242, 152, 52, 240));
                     }
                     for _ in 0..y.gold.clamp(0, 3) {
-                        draw_circle(px, py, pip_r, dim_color(Color::from_rgba(255, 224, 58, 240), dim));
-                        px += pip_r * 2.1;
+                        draw_pip(Color::from_rgba(255, 224, 58, 240));
                     }
                     for _ in 0..y.science.clamp(0, 3) {
-                        draw_circle(px, py, pip_r, dim_color(Color::from_rgba(72, 220, 255, 240), dim));
-                        px += pip_r * 2.1;
+                        draw_pip(Color::from_rgba(72, 220, 255, 240));
                     }
                 }
 
@@ -438,7 +474,7 @@ pub fn render_world(
         }
     }
 
-    // PASS 3: Cities & Units
+    // PASS 3: Procedural Cities & Units
     for wrap in wrap_min..=wrap_max {
         let x_offset = (wrap as f32) * ww;
 
@@ -463,18 +499,20 @@ pub fn render_world(
             let cc = civ_color(world.civs[cid as usize].color);
             let ac = civ_color(world.civs[cid as usize].accent);
             let has_wonder = (world.cities.buildings[ci] & world.wonders_built) != 0;
+            let civ_era = rules.era_for_techs(world.civs[cid as usize].tech_bits);
 
-            let sz = (r * 0.44).max(ui.dp(5.0));
-            draw_rectangle(sx - sz, sy - sz * 0.7, sz * 2.0, sz * 1.4, Color::from_rgba(32, 34, 42, 235));
-            draw_rectangle_lines(
-                sx - sz,
-                sy - sz * 0.7,
-                sz * 2.0,
-                sz * 1.4,
-                ui.dp(2.0),
-                if has_wonder { Color::from_rgba(255, 218, 64, 255) } else { ac },
+            let sz = (r * 0.46).max(ui.dp(6.0));
+            draw_city_sprite(
+                ui.theme,
+                sx,
+                sy,
+                sz,
+                civ_era,
+                world.cities.is_capital[ci],
+                has_wonder,
+                cc,
+                ac,
             );
-            draw_circle(sx, sy, sz * 0.35, cc);
 
             if r_dp >= 15.0 {
                 let fs = (r * 0.42).clamp(ui.fs(11.0), ui.fs(20.0));
@@ -487,20 +525,22 @@ pub fn render_world(
                 };
                 let label = format!("{}{} [{}]", prefix, world.cities.name[ci], world.cities.pop[ci]);
                 let dims = measure_text(&label, None, fs as u16, 1.0);
-                let bw = dims.width + ui.dp(14.0);
+                let bw = dims.width + ui.dp(16.0);
                 let bh = fs + ui.dp(8.0);
                 let bx = sx - bw * 0.5;
-                let by = sy - r * 0.98 - bh * 0.5;
-                draw_rectangle(bx, by, bw, bh, Color::from_rgba(16, 20, 28, 224));
-                draw_rectangle(bx, by, ui.dp(4.0), bh, cc);
-                draw_rectangle_lines(bx, by, bw, bh, ui.dp(1.2), cc);
-                draw_text(&label, bx + ui.dp(8.0), by + bh - ui.dp(5.0), fs, WHITE);
+                let by = sy - r * 1.02 - bh * 0.5;
+                draw_panel(ui, Rect::new(bx, by, bw, bh), Color::from_rgba(14, 18, 28, 232), cc);
+                draw_rectangle(bx + ui.dp(2.0), by + ui.dp(2.0), ui.dp(4.0), bh - ui.dp(4.0), cc);
+                if is_pixel {
+                    draw_text(&label, bx + ui.dp(10.0), by + bh - ui.dp(4.0), fs, Color::new(0.0, 0.0, 0.0, 0.7));
+                }
+                draw_text(&label, bx + ui.dp(9.0), by + bh - ui.dp(5.0), fs, WHITE);
 
                 if world.cities.hp[ci] < world.cities.max_hp[ci] {
                     let frac = (world.cities.hp[ci].max(0) as f32) / (world.cities.max_hp[ci] as f32);
                     let hp_h = ui.dp(4.0);
-                    draw_rectangle(bx, by - hp_h - ui.dp(1.5), bw, hp_h, Color::from_rgba(30, 30, 36, 220));
-                    draw_rectangle(bx, by - hp_h - ui.dp(1.5), bw * frac, hp_h, Color::from_rgba(235, 76, 62, 255));
+                    draw_rectangle(bx, by - hp_h - ui.dp(2.0), bw, hp_h, Color::from_rgba(30, 30, 36, 225));
+                    draw_rectangle(bx, by - hp_h - ui.dp(2.0), bw * frac, hp_h, Color::from_rgba(235, 76, 62, 255));
                 }
             }
         }
@@ -533,42 +573,31 @@ pub fn render_world(
             let ac = civ_color(world.civs[uciv as usize].accent);
             let is_sel = selected_unit == Some(u as UnitId);
             let no_moves = world.units.moves_halves[u] == 0;
-            let badge_r = (r * 0.40).clamp(ui.dp(5.0), ui.dp(28.0));
-            let fill = if no_moves { dim_color(cc, 0.65) } else { cc };
-            let stroke = if is_sel { ui.dp(3.0) } else { ui.dp(1.7) };
+            let badge_r = (r * 0.42).clamp(ui.dp(6.0), ui.dp(28.0));
+            let era_tier = def.tech.map_or(0, |t| rules.techs[t as usize].era);
+            let is_unique = def.unique_to_civ.is_some();
 
-            if def.role.is_civilian() {
-                draw_poly(sx, sy, 4, badge_r * 0.95, 45.0, fill);
-                draw_poly_lines(sx, sy, 4, badge_r * 0.95, 45.0, stroke, if is_sel { YELLOW } else { ac });
-            } else if def.role.is_air() {
-                draw_poly(sx, sy, 3, badge_r * 1.08, -90.0, fill);
-                draw_poly_lines(sx, sy, 3, badge_r * 1.08, -90.0, stroke, if is_sel { YELLOW } else { ac });
-            } else {
-                draw_circle(sx, sy, badge_r, fill);
-                draw_circle_lines(sx, sy, badge_r, stroke, if is_sel { YELLOW } else { ac });
-            }
+            draw_unit_sprite(
+                ui.theme,
+                sx,
+                sy,
+                badge_r,
+                def.role,
+                era_tier,
+                is_unique,
+                cc,
+                ac,
+                is_sel,
+                no_moves,
+            );
 
-            if r_dp >= 14.0 {
-                let glyph = match def.role {
-                    UnitRole::Settler => "S",
-                    UnitRole::Worker => "W",
-                    UnitRole::Recon => "R",
-                    UnitRole::Melee => "M",
-                    UnitRole::Ranged => "A",
-                    UnitRole::Cavalry => "C",
-                    UnitRole::Siege => "G",
-                    UnitRole::Naval => "N",
-                    UnitRole::Air => "F",
-                };
-                let gfs = (badge_r * 1.15).clamp(ui.fs(10.0), ui.fs(22.0));
-                let gdim = measure_text(glyph, None, gfs as u16, 1.0);
-                draw_text(glyph, sx - gdim.width * 0.5, sy + gdim.height * 0.35, gfs, ac);
-            }
             if world.units.auto_work[u] && r_dp >= 13.0 {
-                draw_circle(
-                    sx + badge_r * 0.78,
-                    sy - badge_r * 0.72,
-                    (badge_r * 0.28).clamp(ui.dp(2.5), ui.dp(5.5)),
+                let ar = (badge_r * 0.28).clamp(ui.dp(2.5), ui.dp(5.5));
+                draw_rectangle(
+                    sx + badge_r * 0.56,
+                    sy - badge_r * 0.92,
+                    ar * 1.9,
+                    ar * 1.9,
                     Color::from_rgba(68, 232, 126, 255),
                 );
             }
@@ -579,13 +608,14 @@ pub fn render_world(
                 let spacing = (badge_r * 0.48).max(ui.dp(4.5));
                 let start_x = sx - spacing * ((stars as f32 - 1.0) * 0.5);
                 let star_y = sy - badge_r - ui.dp(4.0);
+                let sr = (badge_r * 0.22).clamp(ui.dp(2.2), ui.dp(4.5));
                 for s in 0..stars {
-                    draw_circle(
-                        start_x + (s as f32) * spacing,
-                        star_y,
-                        (badge_r * 0.22).clamp(ui.dp(2.2), ui.dp(4.5)),
-                        Color::from_rgba(255, 218, 64, 255),
-                    );
+                    let px = start_x + (s as f32) * spacing;
+                    if is_pixel {
+                        draw_rectangle(px - sr, star_y - sr, sr * 2.0, sr * 2.0, Color::from_rgba(255, 218, 64, 255));
+                    } else {
+                        draw_circle(px, star_y, sr, Color::from_rgba(255, 218, 64, 255));
+                    }
                 }
             }
 

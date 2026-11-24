@@ -3,6 +3,7 @@ pub mod codex;
 pub mod hud;
 pub mod renderer;
 pub mod settings;
+pub mod sprites;
 pub mod storage;
 
 use crate::camera::MapCamera;
@@ -15,7 +16,7 @@ use crate::settings::{AppOptions, UiMetrics};
 use crate::storage::{has_save, load_slot, save_slot};
 use hexforge_sim::ai::speculative::SpeculativePlanner;
 use hexforge_sim::combat::{attack_city, attack_unit, merge_units};
-use hexforge_sim::economy::{recompute_all_civs, rush_buy};
+use hexforge_sim::economy::{next_mandatory_choice, recompute_all_civs, rush_buy};
 use hexforge_sim::improvements::{pillage_tile, start_worker_order};
 use hexforge_sim::mapgen::generate_world;
 use hexforge_sim::pathing::{
@@ -24,7 +25,7 @@ use hexforge_sim::pathing::{
 use hexforge_sim::policies::adopt_policy;
 use hexforge_sim::ruleset::Ruleset;
 use hexforge_sim::types::{
-    DiploStatus, GameConfig, TileId, UnitId, UnitRole, INVALID_CITY, INVALID_UNIT,
+    DiploStatus, GameConfig, PendingChoice, TileId, UnitId, UnitRole, INVALID_CITY, INVALID_UNIT,
 };
 use hexforge_sim::world::World;
 use hexforge_sim::{end_human_turn, step_full_turn, TurnMetrics};
@@ -33,7 +34,7 @@ use std::sync::Arc;
 
 pub fn window_conf() -> Conf {
     Conf {
-        window_title: "HexForge-Rust v0.4 — Pure-Rust 4X".to_owned(),
+        window_title: "HexForge-Rust v0.5 — Pure-Rust 4X".to_owned(),
         window_width: 1280,
         window_height: 760,
         high_dpi: true,
@@ -154,7 +155,61 @@ impl Session {
                 return;
             }
         }
-        self.set_toast("All units moved — tap END TURN!");
+        self.set_toast("All units moved!");
+    }
+
+    /// Jump directly to the missing Technology, idle City, or affordable Policy modal.
+    fn resolve_pending_choice(&mut self, rules: &Ruleset, choice: PendingChoice) {
+        match choice {
+            PendingChoice::ChooseTech => {
+                if let Some(hciv) = self.world.config.human_civ {
+                    let bits = self.world.civs[hciv as usize].tech_bits;
+                    // Auto-select the earliest era that has an available researchable tech
+                    let best_era = rules
+                        .techs
+                        .iter()
+                        .filter(|t| rules.can_research(bits, t.id))
+                        .map(|t| t.era)
+                        .min()
+                        .unwrap_or_else(|| rules.era_for_techs(bits));
+                    self.gui.tech_era_tab = best_era;
+                }
+                self.gui.modal.0 = ActiveModal::Tech;
+                self.set_toast("Choose a Technology before ending turn!");
+            }
+            PendingChoice::ChooseProduction(cid) => {
+                if self.world.cities.is_alive(cid) {
+                    let pos = self.world.cities.pos[cid as usize];
+                    let cname = self.world.cities.name[cid as usize].clone();
+                    self.cam.focus_tile(&self.world.map, pos);
+                    self.selected_tile = Some(pos);
+                    self.selected_unit = None;
+                    self.refresh_selection_overlays(rules);
+                    self.gui.city_scroll.reset();
+                    self.gui.modal.0 = ActiveModal::City(cid);
+                    self.set_toast(format!("Choose production for {cname}!"));
+                }
+            }
+            PendingChoice::AdoptPolicy => {
+                self.gui.modal.0 = ActiveModal::Policies;
+                self.set_toast("Adopt a Social Policy before ending turn!");
+            }
+        }
+    }
+
+    /// Enforces Mandatory Pre-Turn Choices (Tech + Idle City Production) before ending human turn!
+    fn try_end_turn(&mut self, rules: &Arc<Ruleset>, options: &AppOptions) {
+        if options.require_turn_choices {
+            if let Some(hciv) = self.world.config.human_civ {
+                if let Some(choice) =
+                    next_mandatory_choice(&self.world, rules, hciv, options.require_policy_choice)
+                {
+                    self.resolve_pending_choice(rules, choice);
+                    return;
+                }
+            }
+        }
+        self.do_end_turn(rules, options);
     }
 
     fn do_end_turn(&mut self, rules: &Arc<Ruleset>, options: &AppOptions) {
@@ -207,7 +262,7 @@ pub async fn run_game() {
 
             if sess.gui.modal.0 == ActiveModal::None && sess.world.victory.is_none() {
                 if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
-                    sess.do_end_turn(&rules, &options);
+                    sess.try_end_turn(&rules, &options);
                 } else if is_key_pressed(KeyCode::Tab) {
                     sess.select_next_ready_unit(&rules);
                 } else if is_key_pressed(KeyCode::Escape) {
@@ -291,7 +346,8 @@ pub async fn run_game() {
             let mut back_to_title = false;
             match hud_action {
                 HudAction::None => {}
-                HudAction::EndTurn => sess.do_end_turn(&rules, &options),
+                HudAction::EndTurn => sess.try_end_turn(&rules, &options),
+                HudAction::ResolveChoice(choice) => sess.resolve_pending_choice(&rules, choice),
                 HudAction::NextUnit => sess.select_next_ready_unit(&rules),
                 HudAction::MergeUnit(u1, u2) => {
                     if merge_units(&mut sess.world, &rules, u1, u2) {
@@ -338,10 +394,16 @@ pub async fn run_game() {
                     }
                 }
                 HudAction::PillageTile(uid) => {
+                    let bonus = if sess.world.units.is_alive(uid) {
+                        let c = sess.world.units.civ[uid as usize] as usize;
+                        rules.civs[sess.world.civs[c].template_idx as usize].pillage_gold_bonus
+                    } else {
+                        0
+                    };
                     if pillage_tile(&mut sess.world, &rules, uid) {
                         recompute_all_civs(&mut sess.world, &rules);
                         sess.refresh_selection_overlays(&rules);
-                        sess.set_toast("Pillaged tile! (+20 Gold, +20 HP)");
+                        sess.set_toast(format!("Pillaged tile! (+{} Gold, +20 HP)", 20 + bonus));
                     }
                 }
                 HudAction::FortifyUnit(uid) => {
@@ -359,7 +421,14 @@ pub async fn run_game() {
                         sess.gui.diplo_scroll.reset();
                     } else if m == ActiveModal::Tech {
                         if let Some(hciv) = viewer {
-                            sess.gui.tech_era_tab = rules.era_for_techs(sess.world.civs[hciv as usize].tech_bits);
+                            let bits = sess.world.civs[hciv as usize].tech_bits;
+                            sess.gui.tech_era_tab = rules
+                                .techs
+                                .iter()
+                                .filter(|t| rules.can_research(bits, t.id))
+                                .map(|t| t.era)
+                                .min()
+                                .unwrap_or_else(|| rules.era_for_techs(bits));
                         }
                     }
                     sess.gui.modal.0 = m;

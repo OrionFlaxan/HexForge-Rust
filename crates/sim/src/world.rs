@@ -766,11 +766,13 @@ impl World {
                 mix(&mut h, self.cities.civ[i] as u64);
                 mix(&mut h, self.cities.pop[i] as u64);
                 mix(&mut h, self.cities.hp[i] as u64);
-                mix(&mut h, self.cities.buildings[i]);
+                mix(&mut h, self.cities.buildings[i] as u64);
+                mix(&mut h, (self.cities.buildings[i] >> 64) as u64);
                 mix(&mut h, self.cities.prod_stored[i] as u64);
             }
         }
-        mix(&mut h, self.wonders_built);
+        mix(&mut h, self.wonders_built as u64);
+        mix(&mut h, (self.wonders_built >> 64) as u64);
         for t in 0..self.map.num_tiles {
             let imp = self.map.improvement[t] as u64;
             let rd = self.map.road[t] as u64;

@@ -403,7 +403,6 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         }
     }
     let start_gold = 40 + (start_era as i32) * 90;
-    let first_tech = pick_next_available_tech(start_tech_bits, rules);
 
     let mut civs = Vec::with_capacity(num_civs);
     for c in 0..num_civs {
@@ -414,6 +413,16 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
             (config.rules.difficulty as i32) * 25
         } else {
             0
+        };
+        let mut civ_tech_bits = start_tech_bits;
+        if let Some(st) = tpl.starts_with_tech {
+            civ_tech_bits |= 1u128 << st;
+        }
+        // Human chooses first tech explicitly via the Mandatory Pre-Turn Choice Blocker!
+        let current_tech = if is_human {
+            None
+        } else {
+            pick_next_available_tech(civ_tech_bits, rules)
         };
         civs.push(CivState {
             id: c as CivId,
@@ -430,9 +439,9 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
             science_per_turn: 0,
             culture_per_turn: 0,
             culture_stored: (start_era as i32) * 20,
-            tech_bits: start_tech_bits,
+            tech_bits: civ_tech_bits,
             policy_bits: 0,
-            current_tech: first_tech,
+            current_tech,
             tech_progress: 0,
             supply_used: 0,
             supply_cap: 7,
@@ -469,20 +478,24 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
         speculative_dirty_civs: u64::MAX,
     };
 
-    let start_melee = rules
-        .best_unit_for_role(start_tech_bits, UnitRole::Melee)
-        .unwrap_or(rules.warrior_kind);
-    let start_ranged = rules.best_unit_for_role(start_tech_bits, UnitRole::Ranged);
-
     for (c, &start_tile) in chosen_starts.iter().enumerate() {
         let civ_id = c as CivId;
+        let tpl_idx = world.civs[c].template_idx;
+        let civ_techs = world.civs[c].tech_bits;
+        let civ_xp = rules.civs[tpl_idx as usize].unit_xp.max(0) as u16;
+        let start_melee = rules
+            .best_unit_for_role_civ(civ_techs, tpl_idx, UnitRole::Melee)
+            .unwrap_or(rules.warrior_kind);
+        let start_ranged = rules.best_unit_for_role_civ(civ_techs, tpl_idx, UnitRole::Ranged);
+
         if let Some(cap_id) = world.found_city(rules, civ_id, start_tile) {
             if start_era > 0 {
                 world.cities.pop[cap_id as usize] = 1 + (start_era as u16);
             }
         }
         if let Some(t) = world.find_spawn_tile(start_tile, false, false) {
-            world.spawn_unit(rules, civ_id, start_melee, t, 0);
+            let xp = civ_xp + rules.units[start_melee as usize].starting_xp;
+            world.spawn_unit(rules, civ_id, start_melee, t, xp);
         }
         if let Some(t) = world.find_spawn_tile(start_tile, false, false) {
             let second_kind = if start_era >= 2 {
@@ -490,7 +503,8 @@ pub fn generate_world(config: GameConfig, rules: &Ruleset) -> World {
             } else {
                 rules.scout_kind
             };
-            world.spawn_unit(rules, civ_id, second_kind, t, 0);
+            let xp = civ_xp + rules.units[second_kind as usize].starting_xp;
+            world.spawn_unit(rules, civ_id, second_kind, t, xp);
         }
         if let Some(t) = world.find_spawn_tile(start_tile, true, false) {
             world.spawn_unit(rules, civ_id, rules.worker_kind, t, 0);

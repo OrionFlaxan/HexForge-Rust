@@ -1,11 +1,14 @@
 use crate::hex::HexMapSoA;
 use crate::improvements::{advance_worker_orders_for_civ, improvement_yields};
-use crate::policies::{adopt_policy, aggregate_policy_bonuses, pick_ai_policy, policy_cost};
+use crate::policies::{
+    adopt_policy, aggregate_policy_bonuses, can_adopt_policy, can_afford_any_policy,
+    pick_ai_policy, policy_cost,
+};
 use crate::ruleset::Ruleset;
 use crate::types::{
-    CityId, CivId, Elevation, Feature, Improvement, ProductionItem, Resource, Road, TechBits,
-    Terrain, TileId, VictoryKind, VictoryState, Yields, INVALID_TILE, NO_CIV, VICTORY_DOMINATION,
-    VICTORY_SCIENCE, VICTORY_SCORE,
+    BuildingBits, CityId, CivId, Elevation, Feature, Improvement, PendingChoice, ProductionItem,
+    Resource, Road, TechBits, Terrain, TileId, VictoryKind, VictoryState, Yields, INVALID_TILE,
+    NO_CIV, VICTORY_DOMINATION, VICTORY_SCIENCE, VICTORY_SCORE,
 };
 use crate::world::World;
 
@@ -90,9 +93,13 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
     let center = tile_yields(&world.map, rules, cpos, techs);
     let mut total = Yields::new(
         center.food.max(2) + tpl.city_food + pbonus.city_food,
-        center.prod.max(1) + if world.cities.is_capital[ci] { 2 } else { 0 } + pbonus.city_prod,
-        center.gold + if world.cities.is_capital[ci] { 3 } else { 0 } + pbonus.city_gold,
-        center.science + (pop as i16) + if world.cities.is_capital[ci] { 3 } else { 0 } + pbonus.city_science,
+        center.prod.max(1) + if world.cities.is_capital[ci] { 2 } else { 0 } + tpl.city_prod + pbonus.city_prod,
+        center.gold + if world.cities.is_capital[ci] { 3 } else { 0 } + tpl.city_gold + pbonus.city_gold,
+        center.science
+            + (pop as i16)
+            + if world.cities.is_capital[ci] { 3 } else { 0 }
+            + tpl.city_science
+            + pbonus.city_science,
         center.culture + if world.cities.is_capital[ci] { 2 } else { 1 } + tpl.city_culture + pbonus.city_culture,
     );
 
@@ -151,6 +158,12 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
 
     let bbits = world.cities.buildings[ci];
     let mut prod_pct = (tpl.prod_pct as i32) + pbonus.prod_pct;
+    // Egypt / France Wonder production bonus applies while constructing any World Wonder!
+    if let Some(ProductionItem::Building(bid)) = world.cities.producing[ci] {
+        if rules.buildings[bid as usize].is_wonder {
+            prod_pct += tpl.wonder_prod_pct as i32;
+        }
+    }
     if world.map.road[cpos as usize] == Road::Railroad {
         prod_pct += 15; // Realistic Railroad industrial throughput bonus!
     }
@@ -158,7 +171,7 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
     let mut sci_pct = (tpl.sci_pct as i32) + pbonus.sci_pct;
     let mut b_upkeep = 0i16;
     for b in &rules.buildings {
-        if (bbits & (1u64 << b.id)) != 0 {
+        if (bbits & (1u128 << b.id)) != 0 {
             total.food += b.food;
             total.prod += b.production;
             total.gold += b.gold;
@@ -196,15 +209,17 @@ pub fn compute_city_yields(world: &World, rules: &Ruleset, city: CityId) -> Yiel
     total
 }
 
-/// Compute total Rush-Buy discount (%) for `civ` from Wonders (Big Ben) and Policies (Mercantilism).
+/// Compute total Rush-Buy discount (%) for `civ` from Civ Trait, Wonders (Big Ben) and Policies (Mercantilism).
 pub fn civ_rush_discount_pct(world: &World, rules: &Ruleset, civ: CivId) -> i32 {
-    let pbonus = aggregate_policy_bonuses(rules, world.civs[civ as usize].policy_bits);
-    let mut disc = pbonus.rush_discount_pct;
+    let cs = &world.civs[civ as usize];
+    let tpl = &rules.civs[cs.template_idx as usize];
+    let pbonus = aggregate_policy_bonuses(rules, cs.policy_bits);
+    let mut disc = (tpl.rush_discount_pct as i32) + pbonus.rush_discount_pct;
     for ci in 0..world.cities.len() {
         if world.cities.alive[ci] && world.cities.civ[ci] == civ {
             let bbits = world.cities.buildings[ci];
             for b in &rules.buildings {
-                if b.rush_buy_discount_pct > 0 && (bbits & (1u64 << b.id)) != 0 {
+                if b.rush_buy_discount_pct > 0 && (bbits & (1u128 << b.id)) != 0 {
                     disc += b.rush_buy_discount_pct as i32;
                 }
             }
@@ -245,7 +260,7 @@ pub fn recompute_all_civs(world: &mut World, rules: &Ruleset) {
         pop_totals[cid] += world.cities.pop[c];
         let bbits = world.cities.buildings[c];
         for b in &rules.buildings {
-            if (bbits & (1u64 << b.id)) != 0 {
+            if (bbits & (1u128 << b.id)) != 0 {
                 if b.supply > 0 {
                     supply_bldg[cid] += b.supply as u16;
                 }
@@ -322,6 +337,53 @@ pub fn recompute_all_civs(world: &mut World, rules: &Ruleset) {
     }
 }
 
+/// Check if `civ` has any pending mandatory choice before ending the turn:
+/// 1. Missing active Technology (when at least one tech is researchable)
+/// 2. Idle City with no production target (when at least one unit/building is buildable)
+/// 3. Optional Social Policy adoption (when `require_policy` is enabled and culture is sufficient)
+pub fn next_mandatory_choice(
+    world: &World,
+    rules: &Ruleset,
+    civ: CivId,
+    require_policy: bool,
+) -> Option<PendingChoice> {
+    let cs = world.civs.get(civ as usize)?;
+    if !cs.alive || world.victory.is_some() {
+        return None;
+    }
+
+    if cs.current_tech.is_none() && pick_next_available_tech(cs.tech_bits, rules).is_some() {
+        return Some(PendingChoice::ChooseTech);
+    }
+
+    let tpl_idx = cs.template_idx;
+    let techs = cs.tech_bits;
+    for ci in 0..world.cities.len() {
+        if world.cities.alive[ci] && world.cities.civ[ci] == civ && world.cities.producing[ci].is_none() {
+            let bbits = world.cities.buildings[ci];
+            let has_option = rules
+                .units
+                .iter()
+                .any(|u| rules.can_train_unit_for_civ(techs, tpl_idx, u.id))
+                || rules.buildings.iter().any(|b| {
+                    rules.can_build_building_for_civ(techs, bbits, world.wonders_built, tpl_idx, b.id)
+                });
+            if has_option {
+                return Some(PendingChoice::ChooseProduction(ci as CityId));
+            }
+        }
+    }
+
+    if require_policy
+        && can_afford_any_policy(world, rules, civ)
+        && rules.policies.iter().any(|p| can_adopt_policy(rules, cs.policy_bits, p.id))
+    {
+        return Some(PendingChoice::AdoptPolicy);
+    }
+
+    None
+}
+
 /// Advance workers, cities, tech research, culture/policies, treasury, and unit movement for `civ`.
 pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
     if !world.civs[civ as usize].alive {
@@ -331,6 +393,8 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
     advance_worker_orders_for_civ(world, rules, civ);
 
     let speed = world.config.rules.speed;
+    let tpl_idx = world.civs[civ as usize].template_idx;
+    let civ_unit_xp = rules.civs[tpl_idx as usize].unit_xp.max(0) as u16;
     let pbonus = aggregate_policy_bonuses(rules, world.civs[civ as usize].policy_bits);
 
     // 1. Process all cities belonging to `civ`
@@ -367,7 +431,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
             // Check if another civ already completed this unique World Wonder
             if let ProductionItem::Building(bid) = item {
                 let bdef = &rules.buildings[bid as usize];
-                if bdef.is_wonder && (world.wonders_built & (1u64 << bid)) != 0 {
+                if bdef.is_wonder && (world.wonders_built & (1u128 << bid)) != 0 {
                     let refund = (world.cities.prod_stored[ci] / 2).max(10);
                     world.civs[civ as usize].gold += refund;
                     world.cities.prod_stored[ci] = 0;
@@ -387,7 +451,10 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
                 match item {
                     ProductionItem::Unit(uk) => {
                         let def = &rules.units[uk as usize];
-                        let xp = city_unit_xp(rules, world.cities.buildings[ci]) + pbonus.unit_xp;
+                        let xp = city_unit_xp(rules, world.cities.buildings[ci])
+                            + pbonus.unit_xp
+                            + civ_unit_xp
+                            + def.starting_xp;
                         if let Some(spawn_t) = world.find_spawn_tile(
                             world.cities.pos[ci],
                             def.role.is_civilian(),
@@ -398,7 +465,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
                     }
                     ProductionItem::Building(bid) => {
                         let bdef = &rules.buildings[bid as usize];
-                        let mask = 1u64 << bid;
+                        let mask = 1u128 << bid;
                         if bdef.is_wonder {
                             if (world.wonders_built & mask) != 0 {
                                 world.civs[civ as usize].gold += cost / 2;
@@ -411,8 +478,11 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
                             if let Some(ft) = pick_next_available_tech(world.civs[civ as usize].tech_bits, rules) {
                                 world.civs[civ as usize].tech_bits |= 1u128 << ft;
                                 if world.civs[civ as usize].current_tech == Some(ft) {
-                                    world.civs[civ as usize].current_tech =
-                                        pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
+                                    world.civs[civ as usize].current_tech = if world.civs[civ as usize].is_human {
+                                        None
+                                    } else {
+                                        pick_next_available_tech(world.civs[civ as usize].tech_bits, rules)
+                                    };
                                 }
                             }
                         }
@@ -456,10 +526,20 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
         if world.civs[civ as usize].tech_progress >= cost {
             world.civs[civ as usize].tech_progress -= cost;
             world.civs[civ as usize].tech_bits |= 1u128 << tech;
-            world.civs[civ as usize].current_tech = pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
+            // Human players choose their next research target explicitly instead of silent auto-picking!
+            if world.civs[civ as usize].is_human {
+                world.civs[civ as usize].current_tech = None;
+            } else {
+                world.civs[civ as usize].current_tech =
+                    pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
+            }
         }
+    } else if !world.civs[civ as usize].is_human {
+        world.civs[civ as usize].current_tech =
+            pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
     } else {
-        world.civs[civ as usize].current_tech = pick_next_available_tech(world.civs[civ as usize].tech_bits, rules);
+        // If human disabled mandatory choices, bank science overflow so nothing is wasted
+        world.civs[civ as usize].tech_progress = (world.civs[civ as usize].tech_progress + spt).min(20_000);
     }
 
     // 3. Refresh all units of `civ`
@@ -478,7 +558,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
         world.units.has_attacked[u] = false;
     }
 
-    // 4. Auto-upgrade units in friendly territory if civ has plenty of gold
+    // 4. Auto-upgrade units in friendly territory if civ has plenty of gold (honoring Civ Unique Units!)
     if world.civs[civ as usize].gold >= 160 {
         let techs = world.civs[civ as usize].tech_bits;
         for u in 0..world.units.len() {
@@ -489,7 +569,7 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
                 continue;
             }
             let kind = world.units.kind[u];
-            if let Some(upg) = rules.units[kind as usize].upgrades_to {
+            if let Some(upg) = rules.upgrade_target_for_civ(tpl_idx, kind) {
                 let udef = &rules.units[upg as usize];
                 if udef.tech.map_or(true, |t| Ruleset::has_tech(techs, t)) && world.civs[civ as usize].gold >= 90 {
                     world.civs[civ as usize].gold -= 75;
@@ -505,10 +585,10 @@ pub fn process_civ_turn_end(world: &mut World, rules: &Ruleset, civ: CivId) {
 }
 
 #[inline]
-fn city_unit_xp(rules: &Ruleset, bbits: u64) -> u16 {
+fn city_unit_xp(rules: &Ruleset, bbits: BuildingBits) -> u16 {
     let mut xp = 0u16;
     for b in &rules.buildings {
-        if b.unit_xp > 0 && (bbits & (1u64 << b.id)) != 0 {
+        if b.unit_xp > 0 && (bbits & (1u128 << b.id)) != 0 {
             xp += b.unit_xp as u16;
         }
     }
@@ -607,7 +687,7 @@ pub fn advance_global_turn(world: &mut World, rules: &Ruleset) {
     }
 }
 
-/// Instant gold purchase of a unit or building/wonder in `city` (with Wonder/Policy discounts).
+/// Instant gold purchase of a unit or building/wonder in `city` (with Civ Trait/Wonder/Policy discounts).
 pub fn rush_buy(world: &mut World, rules: &Ruleset, city: CityId, item: ProductionItem) -> bool {
     if !world.cities.is_alive(city) {
         return false;
@@ -618,11 +698,13 @@ pub fn rush_buy(world: &mut World, rules: &Ruleset, city: CityId, item: Producti
     if world.civs[civ as usize].gold < cost {
         return false;
     }
+    let tpl_idx = world.civs[civ as usize].template_idx;
+    let civ_unit_xp = rules.civs[tpl_idx as usize].unit_xp.max(0) as u16;
     let pbonus = aggregate_policy_bonuses(rules, world.civs[civ as usize].policy_bits);
     match item {
         ProductionItem::Unit(uk) => {
             let def = &rules.units[uk as usize];
-            if !rules.can_train_unit(world.civs[civ as usize].tech_bits, uk) {
+            if !rules.can_train_unit_for_civ(world.civs[civ as usize].tech_bits, tpl_idx, uk) {
                 return false;
             }
             let Some(spawn_t) =
@@ -631,7 +713,10 @@ pub fn rush_buy(world: &mut World, rules: &Ruleset, city: CityId, item: Producti
                 return false;
             };
             world.civs[civ as usize].gold -= cost;
-            let xp = city_unit_xp(rules, world.cities.buildings[ci]) + pbonus.unit_xp;
+            let xp = city_unit_xp(rules, world.cities.buildings[ci])
+                + pbonus.unit_xp
+                + civ_unit_xp
+                + def.starting_xp;
             world.spawn_unit(rules, civ, uk, spawn_t, xp);
         }
         ProductionItem::Building(bid) => {
@@ -639,16 +724,17 @@ pub fn rush_buy(world: &mut World, rules: &Ruleset, city: CityId, item: Producti
             if bdef.is_wonder {
                 return false; // World Wonders must be constructed, not rush-bought!
             }
-            if !rules.can_build_building(
+            if !rules.can_build_building_for_civ(
                 world.civs[civ as usize].tech_bits,
                 world.cities.buildings[ci],
                 world.wonders_built,
+                tpl_idx,
                 bid,
             ) {
                 return false;
             }
             world.civs[civ as usize].gold -= cost;
-            world.cities.buildings[ci] |= 1u64 << bid;
+            world.cities.buildings[ci] |= 1u128 << bid;
             if bdef.wins_science
                 && (world.config.rules.victory_mask & VICTORY_SCIENCE) != 0
                 && world.victory.is_none()

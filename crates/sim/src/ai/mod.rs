@@ -177,7 +177,8 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         None
     };
 
-    // 5. City Production Planning (respects Supply Cap, Unique Wonders, Air Power & Science Victory)
+    // 5. City Production Planning (respects Supply Cap, Civ Uniques, Unique Wonders, Air Power & Science Victory)
+    let tpl_idx = cs.template_idx;
     let at_supply_cap = cs.supply_used >= cs.supply_cap;
     let near_supply_cap = cs.supply_used + 1 >= cs.supply_cap;
     let mut planned_settlers = num_settlers;
@@ -192,7 +193,7 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         let mut chosen: Option<ProductionItem> = None;
 
         if let Some(sc_b) = rules.space_center_building {
-            if rules.can_build_building(cs.tech_bits, bbits, world.wonders_built, sc_b) {
+            if rules.can_build_building_for_civ(cs.tech_bits, bbits, world.wonders_built, tpl_idx, sc_b) {
                 chosen = Some(ProductionItem::Building(sc_b));
             }
         }
@@ -217,12 +218,16 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
                     || (at_war_count > 0 && !near_supply_cap)));
 
         if chosen.is_none() && want_military {
-            let role = if rules.best_unit_for_role(cs.tech_bits, UnitRole::Air).is_some()
+            let role = if rules
+                .best_unit_for_role_civ(cs.tech_bits, tpl_idx, UnitRole::Air)
+                .is_some()
                 && (cid as usize + world.turn as usize) % 7 == 0
             {
                 UnitRole::Air
             } else if num_melee_cav <= num_ranged + num_siege {
-                if rules.best_unit_for_role(cs.tech_bits, UnitRole::Cavalry).is_some()
+                if rules
+                    .best_unit_for_role_civ(cs.tech_bits, tpl_idx, UnitRole::Cavalry)
+                    .is_some()
                     && (cid as usize + world.turn as usize) % 3 == 0
                 {
                     UnitRole::Cavalry
@@ -230,15 +235,20 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
                     UnitRole::Melee
                 }
             } else if num_siege * 3 < num_ranged + 1
-                && rules.best_unit_for_role(cs.tech_bits, UnitRole::Siege).is_some()
+                && rules
+                    .best_unit_for_role_civ(cs.tech_bits, tpl_idx, UnitRole::Siege)
+                    .is_some()
             {
                 UnitRole::Siege
-            } else if rules.best_unit_for_role(cs.tech_bits, UnitRole::Ranged).is_some() {
+            } else if rules
+                .best_unit_for_role_civ(cs.tech_bits, tpl_idx, UnitRole::Ranged)
+                .is_some()
+            {
                 UnitRole::Ranged
             } else {
                 UnitRole::Melee
             };
-            if let Some(uk) = rules.best_unit_for_role(cs.tech_bits, role) {
+            if let Some(uk) = rules.best_unit_for_role_civ(cs.tech_bits, tpl_idx, role) {
                 chosen = Some(ProductionItem::Unit(uk));
             }
         }
@@ -246,7 +256,7 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
         if chosen.is_none() {
             let mut best_b: Option<(u8, i32)> = None;
             for b in &rules.buildings {
-                if rules.can_build_building(cs.tech_bits, bbits, world.wonders_built, b.id) {
+                if rules.can_build_building_for_civ(cs.tech_bits, bbits, world.wonders_built, tpl_idx, b.id) {
                     // Only capitals / strong cities attempt expensive World Wonders
                     if b.is_wonder && !world.cities.is_capital[ci] && world.cities.pop[ci] < 5 {
                         continue;
@@ -263,8 +273,11 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
                     if b.science_per_pop_half {
                         val += (world.cities.pop[ci] as i32) * 8;
                     }
+                    if b.unique_to_civ == Some(tpl_idx) {
+                        val += 25; // AI favors its own strong historical Unique Building!
+                    }
                     if b.is_wonder && at_war_count == 0 {
-                        val += 60;
+                        val += 60 + (rules.civs[tpl_idx as usize].wonder_prod_pct as i32) * 2;
                     }
                     if b.wins_science {
                         val += 5000;
@@ -277,7 +290,7 @@ pub fn plan_civ(world: &World, rules: &Ruleset, civ: CivId) -> CivPlan {
             if let Some((bid, _)) = best_b {
                 chosen = Some(ProductionItem::Building(bid));
             } else if !at_supply_cap {
-                if let Some(uk) = rules.best_unit_for_role(cs.tech_bits, UnitRole::Melee) {
+                if let Some(uk) = rules.best_unit_for_role_civ(cs.tech_bits, tpl_idx, UnitRole::Melee) {
                     chosen = Some(ProductionItem::Unit(uk));
                 }
             }
